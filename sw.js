@@ -1,7 +1,9 @@
 /* Inquieta Entrenamientos · service worker: guarda la app en el celular para que abra sin internet.
-   build_app.py cambia VERSION en cada entrega; el celular baja la versión nueva solo y la usa la próxima vez que se abra. */
-const VERSION = "2.1.0";
+   build_app.py cambia VERSION en cada entrega; el celular baja la versión nueva solo y la usa la próxima vez que se abra.
+   Las fotos de los ejercicios (/api/img/…) se guardan aparte y no se borran al cambiar de versión. */
+const VERSION = "3.0.0";
 const CACHE = 'inquieta-entrena-' + VERSION;
+const FOTOS = 'fotos-inquieta';
 const ARCHIVOS = [
   "./",
   "./index.html",
@@ -36,9 +38,17 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;
+  if (/\/api\/img\/[a-f0-9]{32}$/.test(url.pathname)) {
+    e.respondWith(caches.open(FOTOS).then((c) => c.match(req.url).then((r) => r || fetch(req).then((res) => {
+      if (res.ok) c.put(req.url, res.clone());
+      return res;
+    }))));
+    return;
+  }
+  if (url.origin !== self.location.origin || url.pathname.includes('/api/')) return;
+  const raiz = new URL(self.registration.scope).pathname;
   if (req.mode === 'navigate') {
-    e.respondWith(caches.match('./index.html').then((r) => r || fetch(req)));
+    if (url.pathname === raiz || url.pathname === raiz + 'index.html') e.respondWith(caches.match('./index.html').then((r) => r || fetch(req)));
     return;
   }
   e.respondWith(caches.match(req, { ignoreSearch: true }).then((r) => r || fetch(req)));

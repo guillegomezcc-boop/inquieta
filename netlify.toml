@@ -1,0 +1,18 @@
+# Inquieta en Netlify: la misma app que GitHub Pages + la API de la nube + la página de cada alumno.
+# - API: netlify/functions/api.mjs responde en /api/* (PIN, datos, fotos y rutina del alumno).
+# - Alumno: /r/<link> muestra alumno.html (sin login; solo su rutina actual).
+[build]
+  publish = "."
+  command = "echo 'La app ya viene armada: no hay nada que compilar'"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/r/*"
+  to = "/alumno.html"
+  status = 200
