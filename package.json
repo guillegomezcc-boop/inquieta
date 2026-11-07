@@ -1,6 +1,6 @@
 {
   "name": "inquieta",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "private": true,
   "description": "App de entrenamientos de Fernanda Rojas (Inquieta): PWA + nube en Netlify.",
   "dependencies": {
