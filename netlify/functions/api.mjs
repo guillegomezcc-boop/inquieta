@@ -149,12 +149,12 @@ async function rutinaAlumno(req, token, s) {
   const limpiar = (e) => { const o = { n: String(e.n || '') }; for (const k of ['lib', 'plan', 'se', 're', 'ti', 'pe', 'de', 'no']) if (e[k] != null && e[k] !== '') o[k] = e[k]; return o; };
   const dias = rutinas.map((w) => ({
     letra: String(w.letra || ''), titulo: String(w.titulo || ''),
-    ej: w.circuitos ? w.circuitos.flatMap((c) => (c.ej || []).map((e) => ({ n: String(e.n || ''), plan: [e.p, e.r].filter(Boolean).join(' · '), bloque: String(c.nombre || '') }))) : (w.ej || []).map(limpiar),
+    ej: w.circuitos ? w.circuitos.flatMap((c) => (c.ej || []).map((e) => ({ n: String(e.n || ''), ...(e.lib ? { lib: String(e.lib) } : {}), plan: [e.p, e.r].filter(Boolean).join(' · '), bloque: String(c.nombre || '') }))) : (w.ej || []).map(limpiar),
   }));
   const ejercicios = {};
   for (const [id, x] of Object.entries(D.docs.ejercicios || {})) {
     if (x._borrado) continue;
-    const o = {}; for (const k of ['n', 'g', 'm', 's', 'nota', 'img', 'base', 'oculto']) if (x[k] != null && x[k] !== '') o[k] = x[k];
+    const o = {}; for (const k of ['n', 'g', 'm', 's', 'nota', 'img', 'base', 'oculto', 'al']) if (x[k] != null && x[k] !== '') o[k] = x[k];
     ejercicios[id] = o;
   }
   const actualizado = rutinas.reduce((m, w) => (String(w.modificado || '') > m ? String(w.modificado) : m), '');

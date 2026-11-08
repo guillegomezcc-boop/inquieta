@@ -1,7 +1,7 @@
 /* Inquieta Entrenamientos · service worker: guarda la app en el celular para que abra sin internet.
    build_app.py cambia VERSION en cada entrega; el celular baja la versión nueva solo y la usa la próxima vez que se abra.
    Las fotos de los ejercicios (/api/img/…) se guardan aparte y no se borran al cambiar de versión. */
-const VERSION = "3.0.1";
+const VERSION = "3.1.0";
 const CACHE = 'inquieta-entrena-' + VERSION;
 const FOTOS = 'fotos-inquieta';
 const ARCHIVOS = [
@@ -13,6 +13,7 @@ const ARCHIVOS = [
   "./img/icon-192.png",
   "./img/icon-512.png",
   "./img/icon-maskable-512.png",
+  "./img/splash-logo.png",
   "./fonts/montserrat-latin-600-normal.woff2",
   "./fonts/montserrat-latin-700-normal.woff2",
   "./fonts/montserrat-latin-800-normal.woff2"

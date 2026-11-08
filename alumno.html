@@ -57,6 +57,10 @@ h1, h2, h3 { font-family: var(--display); margin: 0; letter-spacing: -.01em; tex
 .ej-img .foto { object-fit: contain; background: #0B0E13; }
 .ej-img .sin-fig { display: grid; place-items: center; height: 100%; padding: 14px; }
 .ej-img .sin-fig .mapa { height: 100%; width: auto; }
+.combo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); height: 100%; }
+.combo > div { display: grid; place-items: center; min-width: 0; overflow: hidden; }
+.combo > div + div { border-left: 1px dashed var(--line); }
+.combo .fig, .combo .foto { width: 100%; height: 100%; }
 .ej-num { position: absolute; top: 12px; left: 12px; min-width: 34px; height: 34px; padding: 0 8px; display: grid; place-items: center; border-radius: 12px; background: var(--head); color: var(--head-text); font: 800 16px/1 var(--display); }
 .ej-mapa { position: absolute; right: 10px; bottom: 10px; width: 34px; height: 82px; padding: 4px 3px; border-radius: 10px; background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
 .ej-cuerpo { padding: 14px 16px 16px; }
@@ -797,20 +801,35 @@ if (typeof module !== 'undefined') module.exports = EJ;
   const claveDia = () => `inq-r-${token}-dia`;
   const claveChk = () => `inq-r-${token}-${HOY}-${dia}`;
 
-  function info(e) {
+  // Busca el ejercicio de la biblioteca: por id, por nombre, por los nombres que Fernanda conectó («Elegir monito») o parecido.
+  function resolver(n, lib) {
     const ov = R.ejercicios || {};
-    let id = e.lib && (PRE.has(e.lib) || ov[e.lib]) ? e.lib : '';
+    let id = lib && (PRE.has(lib) || ov[lib]) ? lib : '';
     if (!id) {
-      const k = EJ.norm(e.n);
-      const propio = Object.entries(ov).find(([, x]) => x.n && EJ.norm(x.n) === k);
-      if (propio) id = propio[0]; else { const f = EJ.buscar(e.n); if (f) id = f.id; }
+      const k = EJ.norm(n);
+      const propio = Object.entries(ov).find(([, x]) => x.n && EJ.norm(x.n) === k) || Object.entries(ov).find(([, x]) => (x.al || []).includes(k));
+      if (propio) id = propio[0]; else { const f = EJ.buscar(n); if (f) id = f.id; }
     }
     const o = (id && ov[id]) || {};
     const base = PRE.get(id) || (o.base ? PRE.get(o.base) : null);
-    return { n: e.n, img: o.img || '', fig: base, m: o.m || (base && base.m) || [], s: o.s || (base && base.s) || [], g: o.g || (base && base.g) || '', nota: e.no || o.nota || '' };
+    return { id, n, img: o.img || '', fig: base, m: o.m || (base && base.m) || [], s: o.s || (base && base.s) || [], g: o.g || (base && base.g) || '', nota: o.nota || '' };
+  }
+  function info(e) {
+    const x = resolver(e.n, e.lib);
+    const p = String(e.n || '').split(/\s\+\s/).map((t) => t.trim()).filter(Boolean);
+    if (p.length > 1) { // superserie «A + B»: los dos monitos lado a lado
+      const a = resolver(p[0], e.lib); const b = resolver(p[1], '');
+      if (a.id && b.id && a.id !== b.id) {
+        const m = [...new Set([...a.m, ...b.m])];
+        return { ...a, n: e.n, combo: [a, b], m, s: [...new Set([...a.s, ...b.s])].filter((k) => !m.includes(k)), nota: e.no || '' };
+      }
+    }
+    x.nota = e.no || x.nota;
+    return x;
   }
   const icono = (g) => (g === 'cardio' ? 'pulso' : g === 'movilidad' ? 'estira' : '');
   function imagen(x) {
+    if (x.combo) return `<div class="combo">${x.combo.map((y) => `<div>${imagen(y)}</div>`).join('')}</div>`;
     if (x.img) return `<img class="foto" src="${API}/img/${esc(x.img)}" alt="${esc(x.n)}" loading="lazy" decoding="async">`;
     if (x.fig) return FIG.figura(x.fig, { animar: true });
     return `<div class="sin-fig">${FIG.mapa(x.m, x.s, { lado: 'auto', icono: icono(x.g) })}</div>`;
@@ -893,11 +912,22 @@ if (typeof module !== 'undefined') module.exports = EJ;
     x.drawImage(bmp, (w - dw) / 2, (h - dh) / 2, dw, dh);
     return c.toDataURL('image/jpeg', 0.85);
   }
+  async function imgUna(x, w, h) {
+    if (x.img) return await fotoAJpg(`${API}/img/${x.img}`, w, h);
+    if (x.fig) return await svgAJpg(FIG.figura(x.fig, { animar: false }), w, h);
+    return await svgAJpg(FIG.mapa(x.m, x.s, { lado: 'auto', icono: icono(x.g) }), w, h);
+  }
+  const ponerEn = (g, src, dx, dy, w, h) => new Promise((ok) => { if (!src) { ok(); return; } const im = new Image(); im.onload = () => { g.drawImage(im, dx, dy, w, h); ok(); }; im.onerror = () => ok(); im.src = src; });
   async function imgPdf(x) {
     try {
-      if (x.img) return await fotoAJpg(`${API}/img/${x.img}`, 480, 360);
-      if (x.fig) return await svgAJpg(FIG.figura(x.fig, { animar: false }), 480, 360);
-      return await svgAJpg(FIG.mapa(x.m, x.s, { lado: 'auto', icono: icono(x.g) }), 480, 360);
+      if (x.combo) { // superserie: los dos monitos en la misma imagen
+        const [a, b] = await Promise.all(x.combo.map((y) => imgUna(y, 240, 180).catch(() => null)));
+        const [c, g] = lienzo(480, 360);
+        await ponerEn(g, a, 0, 90, 240, 180); await ponerEn(g, b, 240, 90, 240, 180);
+        g.strokeStyle = '#DCE1E7'; g.lineWidth = 2; g.setLineDash([8, 8]); g.beginPath(); g.moveTo(240, 50); g.lineTo(240, 310); g.stroke();
+        return c.toDataURL('image/jpeg', 0.9);
+      }
+      return await imgUna(x, 480, 360);
     } catch (e) { return null; }
   }
   async function logoPdf() {
