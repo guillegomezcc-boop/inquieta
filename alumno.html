@@ -612,7 +612,7 @@ const EJ = (() => {
   const CUADRUPEDIA = { c: [42, 63], t: 14, p: pies(24, 23.5, 81.2), m: dos([64, 82]), ko: ABAJO };
   const BOCA_ARRIBA = (x = 62, y = 79) => ({ c: [x, y], t: 180 });
 
-  const G = { piernas: 'Piernas', gluteos: 'Glúteos', espalda: 'Espalda', pecho: 'Pecho', hombros: 'Hombros', brazos: 'Brazos', core: 'Core', cardio: 'Cardio', movilidad: 'Movilidad' };
+  const G = { piernas: 'Piernas', gluteos: 'Glúteos', espalda: 'Espalda', pecho: 'Pecho', hombros: 'Hombros', brazos: 'Brazos', core: 'Core', cardio: 'Cardio', movilidad: 'Movilidad', estiramientos: 'Estiramientos' };
   const MUS = { cuadriceps: 'Cuádriceps', isquios: 'Isquiotibiales', gluteos: 'Glúteos', aductores: 'Aductores', abductores: 'Abductores', pantorrillas: 'Pantorrillas', pecho: 'Pectorales', dorsales: 'Dorsales', espalda: 'Espalda media', trapecio: 'Trapecio', lumbares: 'Lumbares', hombros: 'Hombros', biceps: 'Bíceps', triceps: 'Tríceps', antebrazos: 'Antebrazos', abdominales: 'Abdominales', oblicuos: 'Oblicuos' };
 
   const L = [];
@@ -922,14 +922,40 @@ const EJ = (() => {
     f: [{ c: [50, 63], t: 90, p: [[66, AP], [33, 81]], m: dos([63, 63]), ko: [null, [0.2, 1]] }, { c: [55, 63], t: 86, p: [[66, AP], [36, 81]], m: dos([70, 62]), ko: [null, [0.2, 1]] }] });
   add({ id: 'sentadilla-profunda', n: 'Sentadilla profunda asistida', g: 'movilidad', m: ['cuadriceps', 'gluteos'], s: ['pantorrillas'], al: ['sentadilla profunda', 'sentadilla asistida'], zoom: 0.95,
     f: [{ ...PIE, p: pies(61, 57.5), m: dos([80, 36]) }, { c: [50, 72], t: 72, p: pies(61, 57.5), m: dos([78, 48]) }], lin: [{ k: 'trx', de: [100, 6], a: 'mm', cl: 'e2', w: 1.4 }] });
-  add({ id: 'estiramiento-isquios', n: 'Estiramiento de isquios', g: 'movilidad', m: ['isquios'], s: ['lumbares'], al: ['estiramiento isquios', 'isquios', 'toque tobillos suelo'],
-    f: [{ ...PIE, p: pies(60, 57.5) }, { c: [52, 48], t: -62, p: pies(60, 57.5), m: dos([63, 82]), cu: -30 }] });
-  add({ id: 'estiramiento-cuadriceps', n: 'Estiramiento de cuádriceps', g: 'movilidad', m: ['cuadriceps'], al: ['estiramiento cuadriceps', 'cuádriceps estiramiento'],
-    f: [{ ...PIE }, { ...PIE, p: [[45, 52], [58, AP]], m: dos([45, 52], [62, 44]), ko: [[0, 1], null] }] });
-  add({ id: 'cobra', n: 'Cobra', g: 'movilidad', m: ['abdominales', 'lumbares'], al: ['cobra'],
-    f: [{ c: [50, 80], t: 2, p: pies(15, 15, 81.5), m: dos([72, 82]), cab: 10 }, { c: [50, 80], t: 38, cu: 30, cab: 22, p: pies(15, 15, 81.5), m: dos([70, 82]) }] });
-  add({ id: 'perro-boca-abajo', n: 'Perro boca abajo', g: 'movilidad', m: ['isquios', 'hombros'], s: ['pantorrillas', 'dorsales'], al: ['perro boca abajo', 'down dog'],
-    f: [{ c: [61.7, 66.9], t: 25, p: pies(30, 30, 82), m: dos([83, 82]) }, { c: [46, 50], t: -45, p: pies(30, 30, 82), m: dos([83, 82]) }] });
+  /* ---------- ESTIRAMIENTOS ----------
+     En turquesa va el músculo que se estira. Se animan lento (entrar al estiramiento y volver) y el ícono queda en la
+     postura estirada. Se miden en tiempo (30 s) al agregarlos a una rutina. */
+  const E = { g: 'estiramientos', dur: 4.2 };
+  const COLCHONETA = [{ k: 'r', x: 8, y: 82.4, w: 104, h: 2.2, rx: 1.1, cl: 'e4' }];
+  const PARED = (x) => [{ k: 'r', x, y: 6, w: 4, h: 78, rx: 1 }];
+  add({ id: 'estiramiento-isquios', n: 'Estiramiento de isquios de pie', ...E, m: ['isquios'], s: ['pantorrillas', 'lumbares'], al: ['estiramiento isquios', 'estiramiento de isquios', 'isquios', 'toque tobillos suelo', 'elongacion isquios', 'isquios de pie'],
+    f: [{ c: [50, 51], t: 88, p: [[73, 80.4], [46, AP]], pie: [-68, 0], m: dos([60, 60]) }, { c: [50, 54], t: 38, cab: 4, p: [[74, 80.4], [45, AP]], pie: [-68, 0], ko: [null, [1, -0.2]], m: dos([66, 64]) }] });
+  add({ id: 'isquios-sentado', n: 'Estiramiento de isquios sentado', ...E, m: ['isquios'], s: ['pantorrillas', 'lumbares'], al: ['isquios sentado', 'pinza sentado', 'estiramiento isquios sentado', 'elongacion isquios sentado'], esc: COLCHONETA,
+    f: [{ c: [38, 79], t: 84, p: [[73, 80.5], [72.5, 81]], pie: -80, m: dos([52, 76]) }, { c: [38, 79], t: 40, cab: -4, p: [[73, 80.5], [72.5, 81]], pie: -80, m: dos([71, 76.5]) }] });
+  add({ id: 'estiramiento-cuadriceps', n: 'Estiramiento de cuádriceps de pie', ...E, m: ['cuadriceps'], s: ['abdominales'], al: ['estiramiento cuadriceps', 'estiramiento de cuadriceps', 'cuadriceps estiramiento', 'elongacion cuadriceps'],
+    f: [{ ...PIE, p: [[51, 64], [58.5, AP]], m: dos([50, 62], ['h', 3, 23]), ko: [[0, 1], null] }, { ...PIE, p: [[44, 52.5], [58.5, AP]], m: dos([44, 53], [72, 36]), ko: [[0, 1], null] }] });
+  add({ id: 'flexor-cadera', n: 'Estiramiento de flexor de cadera', ...E, m: ['cuadriceps'], s: ['abdominales', 'gluteos'], al: ['flexor de cadera', 'flexores de cadera', 'psoas', 'estiramiento psoas', 'elongacion psoas'], esc: COLCHONETA,
+    f: [{ c: [47, 66], t: 92, p: [[22, 81.5], [70, AP]], pie: [180, 0], ko: [[0, 1], [0.25, -1]], m: dos([66, 63]) }, { c: [54, 68.5], t: 98, cab: -6, p: [[22, 81.5], [70, AP]], pie: [180, 0], ko: [[0, 1], [0.25, -1]], m: dos(['h', 5, -20]), co: [[0, -1], [0, -1]] }] });
+  add({ id: 'postura-nino', n: 'Postura del niño', ...E, m: ['dorsales', 'lumbares'], s: ['gluteos', 'hombros'], al: ['postura del nino', 'posicion del nino', 'nino', 'child pose', 'balasana'], esc: COLCHONETA,
+    f: [{ ...CUADRUPEDIA, c: [46, 63], p: [[30, 81.2], [29.5, 81.6]], pie: [180, 180], m: dos([70, 82]) }, { c: [36.5, 71], t: -13, cab: -6, p: [[34, 81.4], [33.5, 81.8]], pie: [180, 180], ko: [[1, 0.6], [1, 0.6]], m: dos([90, 81.5]) }] });
+  add({ id: 'cobra', n: 'Cobra', ...E, m: ['abdominales'], s: ['lumbares', 'pecho'], al: ['cobra', 'estiramiento abdominal', 'elongacion abdominal'], esc: COLCHONETA,
+    f: [{ c: [48, 80], t: 4, p: pies(14, 14, 81.5), m: dos([66, 82]), co: [[-1, -0.6], [-1, -0.6]], cab: 6 }, { c: [48, 80], t: 46, cu: 24, cab: 26, p: pies(14, 14, 81.5), m: dos([68, 82]) }] });
+  add({ id: 'perro-boca-abajo', n: 'Perro boca abajo', ...E, m: ['isquios', 'pantorrillas'], s: ['dorsales', 'hombros'], al: ['perro boca abajo', 'down dog'], esc: COLCHONETA,
+    f: [{ c: [61.7, 66.9], t: 25, p: pies(30, 30, 82), m: dos([83, 82]) }, { c: [47, 50], t: -46, cab: -6, p: pies(30.5, 30.5, 81.4), pie: [16, 16], m: dos([83, 82]) }] });
+  add({ id: 'estiramiento-pantorrilla', n: 'Estiramiento de pantorrilla en la pared', ...E, m: ['pantorrillas'], s: ['isquios'], al: ['estiramiento pantorrilla', 'estiramiento de pantorrillas', 'pantorrilla pared', 'gemelos pared', 'elongacion pantorrilla'], esc: PARED(96),
+    f: [{ c: [57, 51], t: 82, p: [[37, AP], [71, AP]], pie: [0, 0], ko: [null, [1, -0.3]], m: dos([95.5, 34]) }, { c: [61, 54], t: 64, cab: 6, p: [[37, AP], [73, AP]], pie: [0, 0], ko: [null, [1, -0.3]], m: dos([95.5, 38]) }] });
+  add({ id: 'estiramiento-pecho', n: 'Estiramiento de pecho en la pared', ...E, m: ['pecho'], s: ['hombros', 'biceps'], al: ['estiramiento pecho', 'estiramiento de pecho', 'pectoral pared', 'elongacion pecho'], esc: PARED(26),
+    f: [{ ...PIE, c: [52, 47], p: [[60, AP], [48, AP]], pie: [0, 0], m: dos([31, 27], ['h', 2, 23]) }, { c: [58, 47.5], t: 86, cab: 4, p: [[66, AP], [50, AP]], pie: [0, 0], m: dos([30.5, 25], ['h', 2, 23]) }] });
+  add({ id: 'estiramiento-triceps', n: 'Estiramiento de tríceps', ...E, m: ['triceps'], s: ['dorsales', 'hombros'], al: ['estiramiento triceps', 'estiramiento de triceps', 'triceps estiramiento', 'elongacion triceps'], zoom: 0.92,
+    f: [{ ...PIE, p: pies(60, 56), m: dos([54, 18], [56, 11]), co: [[0.2, -1], [1, -0.6]] }, { ...PIE, p: pies(60, 56), cab: -6, m: dos([51, 27], [54.5, 9.5]), co: [[0.05, -1], [1, -0.6]] }] });
+  add({ id: 'estiramiento-hombro', n: 'Estiramiento de hombro cruzado', ...E, m: ['hombros'], s: ['espalda', 'trapecio'], al: ['estiramiento hombro', 'estiramiento de hombro', 'hombro cruzado', 'brazo cruzado', 'elongacion hombro'],
+    f: [{ v: 'f', ...PIE, m: dos([50, 33], [52, 46]), co: [[0, 1], [-1, 0.3]] }, { v: 'f', ...PIE, m: dos([43, 29], [60, 31]), co: [[0, 1], [0, 1]] }] });
+  add({ id: 'inclinacion-lateral', n: 'Inclinación lateral de pie', ...E, m: ['oblicuos', 'dorsales'], s: ['abdominales'], al: ['inclinacion lateral', 'estiramiento lateral', 'estiramiento oblicuos', 'elongacion lateral'], zoom: 0.92,
+    f: [{ v: 'f', c: [60, 47], p: [[66, AP], [54, AP]], m: dos([71, 49], [56, 4]), co: [[1, 0.2], [-1, -0.4]] }, { v: 'f', c: [58, 47], t: 74, p: [[66, AP], [54, AP]], m: dos([76, 50], [80, 6]), co: [[1, 0.2], [-0.6, -1]] }] });
+  add({ id: 'mariposa', n: 'Mariposa (aductores)', ...E, m: ['aductores'], s: ['gluteos'], al: ['mariposa', 'estiramiento aductores', 'estiramiento de aductores', 'elongacion aductores'], esc: COLCHONETA,
+    f: [{ v: 'f', c: [60, 77], t: 90, p: [[63.5, 80.5], [56.5, 80.5]], ko: [[1, -0.7], [-1, -0.7]], pie: [180, 0], m: dos([63, 79.5], [57, 79.5]) }, { v: 'f', c: [60, 77], t: 90, p: [[63.5, 80.5], [56.5, 80.5]], ko: [[1, -0.15], [-1, -0.15]], pie: [180, 0], m: dos([63, 79.5], [57, 79.5]) }] });
+  add({ id: 'rodilla-pecho', n: 'Rodilla al pecho acostado', ...E, m: ['gluteos', 'lumbares'], s: ['isquios'], al: ['rodilla al pecho', 'rodillas al pecho acostado', 'estiramiento gluteo', 'estiramiento de gluteo', 'estiramiento gluteos', 'elongacion gluteo'], esc: COLCHONETA,
+    f: [{ ...BOCA_ARRIBA(64, 79.5), p: [[76, 64], [98, 80.5]], pie: [-40, -80], ko: [[-0.3, -1], null], m: dos([62, 66]) }, { ...BOCA_ARRIBA(64, 79.5), cab: -10, p: [[71, 59.5], [98, 80.5]], pie: [-20, -80], ko: [[-1, -0.5], null], m: dos([60, 61.5]), co: [[0, 1], [0, 1]] }] });
 
   // Normalizar para buscar por nombre (sin tildes ni mayúsculas).
   const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9/ -]+/g, ' ').replace(/\s+/g, ' ').trim();
