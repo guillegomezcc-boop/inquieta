@@ -24,7 +24,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) { --bg: #0B0E13; --surface: #151A22; --text: #F2F4F7; --muted: #9AA4B2; --line: #283243; --head: #10151C; --brand: #1FD8D3; --brand-ink: #03201F; --brand-text: #45E2DD; --brand-soft: #0E2F30; --shadow: 0 1px 2px rgba(0, 0, 0, .5); color-scheme: dark; }
-  :root:not([data-theme="light"]) .fig { --c1: #E8ECF1; --c2: #6F7A8A; --h2: #0F9C99; --e1: #CBD5E1; --e2: #8C98A8; --e3: #5B6676; --e4: #2C3646; --piso: #283243; }
+  :root:not([data-theme="light"]) .fig { --lz: rgba(255,255,255,.55); --sb: rgba(15,23,42,.13); --lz2: rgba(255,255,255,.1); --sb2: rgba(0,0,0,.2); --som: rgba(0,0,0,.4); --c1: #E8ECF1; --c2: #6F7A8A; --h2: #0F9C99; --e1: #CBD5E1; --e2: #8C98A8; --e3: #5B6676; --e4: #2C3646; --piso: #283243; }
   :root:not([data-theme="light"]) .mapa { --mz: #2F3947; --mb: #3B4656; --ms: #167A78; }
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -92,6 +92,9 @@ h1, h2, h3 { font-family: var(--display); margin: 0; letter-spacing: -.01em; tex
 .fig .f1 { fill: var(--c1); stroke: var(--c1); } .fig .f2 { fill: var(--c2); stroke: var(--c2); }
 .fig .h1 { fill: var(--h1); stroke: var(--h1); } .fig .h2 { fill: var(--h2); stroke: var(--h2); }
 .fig .b1 { fill: var(--c1); stroke: none; } .fig .b2 { fill: var(--c2); stroke: none; } .fig .ol, .fig .ol2 { stroke: var(--fbg); }
+.fig { --lz: rgba(255,255,255,.14); --sb: rgba(0,0,0,.22); --lz2: rgba(255,255,255,.2); --sb2: rgba(31,41,55,.14); --h1o: #00A9A6; --som: rgba(31,41,55,.13); }
+.fig .lz { fill: var(--lz); } .fig .sb { fill: var(--sb); } .fig .lz2 { fill: var(--lz2); } .fig .sb2 { fill: var(--sb2); } .fig .som { fill: var(--som); }
+.fig .h1 { stroke: var(--h1o); }
 .fig .e1 { fill: var(--e1); stroke: var(--e1); } .fig .e2 { fill: var(--e2); stroke: var(--e2); } .fig .e3 { fill: var(--e3); stroke: var(--e3); } .fig .e4 { fill: var(--e4); stroke: var(--e4); }
 .fig .bg { fill: var(--fbg); stroke: var(--fbg); } .fig .hl { stroke: var(--fbg); } .fig .bd { stroke: var(--bd); } .fig .piso { stroke: var(--piso); }
 .fig .ln { fill: none; stroke-linecap: round; stroke-linejoin: round; } .fig .tf { stroke-linejoin: round; }
@@ -289,6 +292,33 @@ const FIG = (() => {
     const f1 = Math.abs(se) > 1 ? por(n1, -sg(se)) : por(n1, sg(pt(n1, f2) || 1));
     return [f1, f2];
   }
+  /* Volumen: una franja de luz (arriba a la izquierda) y una de sombra en el lado contrario, sobre cada parte.
+     El corrimiento depende en forma continua del ángulo de la parte (q = cuánto mira su costado hacia la luz),
+     así en la animación la luz se desliza suave y nunca salta de un lado a otro. */
+  const LUZ = unit([-0.5, -0.87]);
+  // Banda pegada al borde del lado q (de «adentro» a «afuera», en fracción del ancho), con puntas redondeadas.
+  function franja(en, w, q, s0, s1, adentro, afuera) {
+    const k = Math.tanh(3.2 * q); const ss = [0, 0.15, 0.4, 0.6, 0.85, 1].map((t) => s0 + (s1 - s0) * t);
+    const fin = (s) => Math.sin(Math.PI * Math.min(1, Math.max(0, (s - s0) / (s1 - s0)))) ** 0.35;
+    const a = (s) => k * w(s) * (adentro + (afuera - adentro) * (1 - fin(s)) * 0.5); const b = (s) => k * w(s) * afuera * (0.6 + 0.4 * fin(s));
+    return cerrada([...ss.map((s) => en(s, b(s))), ...[...ss].reverse().map((s) => en(s, a(s)))]);
+  }
+  function volumen(A, B, pf, s0 = 0.06, s1 = 0.94) {
+    const d = dir(A, B); const n = perp(d); const L0 = largo(A, B); const q = pt(n, LUZ);
+    const en = (s, w) => [A[0] + d[0] * L0 * s + n[0] * w, A[1] + d[1] * L0 * s + n[1] * w];
+    const w = (s) => Math.min(ancho(pf, 1, s), ancho(pf, -1, s));
+    return { luz: franja(en, w, q, s0, s1, 0.05, 0.86), sombra: franja(en, w, -q, s0 + 0.03, s1 - 0.02, 0.45, 0.88) };
+  }
+  // Cabeza: casi redonda, con mentón y nariz suaves hacia donde mira (de frente, redonda).
+  function cabeza(C, eje, cara, r, perfil) {
+    const a0 = Math.atan2(eje[1], eje[0]);
+    return cerrada(Array.from({ length: 12 }, (_, i) => {
+      const a = a0 + (i * Math.PI) / 6; const v = [Math.cos(a), Math.sin(a)];
+      const f = Math.max(0, pt(v, cara)); const ab = Math.max(0, -pt(v, eje));
+      const rr = r * (1 + perfil * (0.13 * f ** 6 + 0.05 * f * ab - 0.04 * Math.max(0, pt(v, eje)) * f));
+      return [C[0] + v[0] * rr, C[1] + v[1] * rr];
+    }));
+  }
   const TORSO_ADELANTE = [[-0.12, 3.9], [0.1, 5.1], [0.38, 5.0], [0.62, 5.8], [0.82, 6.0], [0.97, 4.2]];
   const TORSO_ATRAS = [[-0.16, 4.1], [-0.03, 6.3], [0.12, 5.8], [0.32, 4.8], [0.55, 5.3], [0.78, 5.8], [0.97, 4.1]];
   function bordeTorso(tabla, s) {
@@ -369,6 +399,14 @@ const FIG = (() => {
       return { k: 'eq' + i, g: PIEZA[it.k] || '', tr: o, rot: Q.ea && Q.ea[i] != null ? Q.ea[i] : (it.a || 0) };
     };
     const forma = (k, d, cls, w = 0.45) => E.push({ k, d, cls, w });
+    const vol = (k, A, B, pf, lejos, s0, s1) => { const v = volumen(A, B, pf, s0, s1); forma('L' + k, v.luz, lejos ? 'lz2' : 'lz', 0); forma('S' + k, v.sombra, lejos ? 'sb2' : 'sb', 0); };
+    // Cada grupo (una pierna, un brazo, el tronco) se dibuja por capas: contornos, cuerpo, músculos y volumen.
+    // Así no quedan costuras entre las partes de un mismo grupo y los grupos de adelante se separan de los de atrás.
+    const grupo = (fn) => {
+      const i0 = E.length; fn(); const g = E.splice(i0);
+      const capa = (e) => (/^ln ol/.test(e.cls) ? 0 : /^b[12]$/.test(e.cls) ? 1 : /^h[12]$/.test(e.cls) ? 2 : 3);
+      [0, 1, 2, 3].forEach((c) => g.forEach((e) => { if (capa(e) === c) E.push(e); }));
+    };
     const halo = (k, d, lejos) => E.push({ k: 'H' + k, d, cls: lejos ? 'ln ol2' : 'ln ol', w: 1.5 });
     const haloC = (k, c, r, lejos) => E.push({ k: 'H' + k, c, r, cls: lejos ? 'ln ol2' : 'ln ol', w: 1.5 });
     (ej.eq || []).forEach((it, i) => { if (it.atras ?? atras.has(it.k)) E.push(pieza(it, i)); });
@@ -384,6 +422,7 @@ const FIG = (() => {
       const dM = contorno(x.a, x.j, PERFIL.muslo, f1); const dP = contorno(x.j, x.e, PERFIL.pierna, f2); const dZ = contorno(talon, x.x, PERFIL.pie, perp(pd));
       halo(`pm${i}`, dM, lejos); halo(`pp${i}`, dP, lejos); halo(`px${i}`, dZ, lejos);
       forma(`pm${i}`, dM, cuerpo(lejos)); forma(`pp${i}`, dP, cuerpo(lejos)); forma(`px${i}`, dZ, cuerpo(lejos));
+      vol(`pm${i}`, x.a, x.j, PERFIL.muslo, lejos, 0.1); vol(`pp${i}`, x.j, x.e, PERFIL.pierna, lejos);
       const t = turq(lejos);
       if (frente) {
         const n1 = perp(dir(x.a, x.j)); const ad = por(n1, sg(pt(n1, [m.c[0] - x.a[0], m.c[1] - x.a[1]]) || 1));
@@ -409,6 +448,7 @@ const FIG = (() => {
       halo(`bh${i}`, dH, lejos); halo(`bb${i}`, dB, lejos); halo(`ba${i}`, dA, lejos); haloC(`bm${i}`, mano, 1.9, lejos);
       forma(`bb${i}`, dB, cuerpo(lejos)); forma(`ba${i}`, dA, cuerpo(lejos));
       E.push({ k: `bm${i}`, c: mano, r: 1.9, cls: cuerpo(lejos) });
+      vol(`bb${i}`, x.a, x.j, PERFIL.brazo, lejos, 0.14); vol(`ba${i}`, x.j, x.e, PERFIL.antebrazo, lejos);
       const t = turq(lejos);
       if (frente) {
         const n1 = perp(d1); const afuera = por(n1, sg(pt(n1, [x.a[0] - m.h[0], x.a[1] - m.h[1]]) || 1));
@@ -421,12 +461,13 @@ const FIG = (() => {
       if (mus.has('antebrazos')) forma(`man${i}`, media(x.j, x.e, PERFIL.antebrazo, f2, 1, 0.06, 0.66, -0.7), t);
       forma(`bh${i}`, dH, mus.has('hombros') ? t : cuerpo(lejos));
     };
-    // Tronco con sus músculos; cuello y cabeza.
-    // Tronco, cuello y cabeza: primero los contornos y después el relleno (así no se ve la unión), luego los músculos.
+    // Tronco, cuello y cabeza (con mentón y nariz hacia donde mira), sus músculos y su volumen.
     const tronco = (T, tabla, pares) => {
       const dc = dir(m.h, m.k); const dN = contorno(m.h, suma(m.h, por(dc, 3.4)), PERFIL.cuello, perp(dc)); const cc = suma(m.h, por(dc, 7.4));
-      halo('tor', T.d); halo('cue', dN); haloC('cab', cc, 4.6);
-      forma('tor', T.d, 'b1'); forma('cue', dN, 'b1'); E.push({ k: 'cab', c: cc, r: 4.6, cls: 'b1' });
+      const cara = frente ? dc : unit(suma(m.fw, por(dc, -pt(m.fw, dc))));
+      const dK = cabeza(cc, dc, cara, 4.6, frente ? 0 : 1);
+      halo('tor', T.d); halo('cue', dN); halo('cab', dK);
+      forma('tor', T.d, 'b1'); forma('cue', dN, 'b1'); forma('cab', dK, 'b1');
       for (const [id, v] of Object.entries(tabla)) {
         if (!mus.has(id)) continue;
         if (v[0] === 'm') { forma(`mt-${id}`, mediaTorso(T, v[1], v[2], v[3], v[4]), 'h1'); continue; }
@@ -434,19 +475,35 @@ const FIG = (() => {
         const eje = ejeLado ? T.n : T.u;
         for (const lado of pares && w ? [1, -1] : [1]) forma(`mt-${id}${lado}`, ovalo(T.en(s, w * lado), eje, ejeLado ? ra : T.L0 * ra, rb), 'h1');
       }
+      const q = pt(T.n, LUZ); const wT = (s) => (frente ? 5.2 : Math.min(bordeTorso(TORSO_ADELANTE, s), bordeTorso(TORSO_ATRAS, s)) * 0.95);
+      forma('Ltor', franja(T.en, wT, q, -0.04, 0.95, 0.1, 0.84), 'lz', 0);
+      forma('Stor', franja(T.en, wT, -q, 0, 0.92, 0.5, 0.86), 'sb', 0);
+      const qc = pt(perp(dc), LUZ);
+      forma('Lcab', franja((t, w) => suma(suma(cc, por(dc, -4.2 + 8.4 * t)), por(perp(dc), w)), (t) => 4.3 * Math.sqrt(Math.max(0.05, 1 - (2 * t - 1) ** 2)), qc, 0.08, 0.92, 0.2, 0.86), 'lz', 0);
     };
     if (!frente) {
-      pierna(m.piernas[1], true, 1); brazo(m.brazos[1], true, 1);
+      grupo(() => pierna(m.piernas[1], true, 1)); grupo(() => brazo(m.brazos[1], true, 1));
       const T = torsoL(m, Q);
-      tronco(T, TRONCO.L, false);
-      pierna(m.piernas[0], false, 0);
-      // El glúteo cubre la parte de atrás de la cadera y del muslo: va encima de la pierna de adelante.
-      if (mus.has('gluteos')) forma('mt-gluteos', ovalo(T.en(0, -3.2), T.u, 4.0, 2.7), 'h1');
-      brazo(m.brazos[0], false, 0);
+      grupo(() => tronco(T, TRONCO.L, false));
+      grupo(() => {
+        pierna(m.piernas[0], false, 0);
+        // El glúteo cubre la parte de atrás de la cadera y del muslo: va encima de la pierna de adelante, siguiendo el borde del tronco.
+        if (mus.has('gluteos')) forma('mt-gluteos', mediaTorso(T, -1, -0.15, 0.2, -0.4), 'h1');
+      });
+      grupo(() => brazo(m.brazos[0], false, 0));
     } else {
-      pierna(m.piernas[0], false, 0); pierna(m.piernas[1], false, 1);
-      tronco(torsoF(m), TRONCO.F, true);
-      brazo(m.brazos[0], false, 0); brazo(m.brazos[1], false, 1);
+      // De frente, piernas y tronco son una sola silueta (sin línea en la cadera); los brazos van encima.
+      grupo(() => { pierna(m.piernas[0], false, 0); pierna(m.piernas[1], false, 1); tronco(torsoF(m), TRONCO.F, true); });
+      grupo(() => brazo(m.brazos[0], false, 0)); grupo(() => brazo(m.brazos[1], false, 1));
+    }
+    // Sombra en el piso: se estira bajo lo que está cerca del suelo y se achica cuando el cuerpo se despega.
+    if (ej.piso !== false) {
+      const pts = [m.c, m.h, m.k, ...m.piernas.flatMap((x) => [x.j, x.e, x.x]), ...m.brazos.map((x) => x.e)];
+      const pp = m.piernas.flatMap((x) => [x.e, x.x]); const cx = pp.reduce((n, p) => n + p[0], 0) / pp.length;
+      const peso = (p) => Math.min(1, Math.max(0, (p[1] - (PISO - 16)) / 12));
+      const xs = pts.map((p) => cx + (p[0] - cx) * peso(p)); const cerca = Math.max(...pts.map(peso));
+      const x0 = Math.min(...xs) - 3; const x1 = Math.max(...xs) + 3;
+      E.unshift({ k: 'som', d: ovalo([(x0 + x1) / 2, PISO + 0.3], [1, 0], Math.max(0.4, (x1 - x0) / 2) * (0.55 + 0.45 * cerca), 1.5 * (0.4 + 0.6 * cerca)), cls: 'som', w: 0 });
     }
     (ej.eq || []).forEach((it, i) => { if (!(it.atras ?? atras.has(it.k))) E.push(pieza(it, i)); });
     return E;
@@ -1088,7 +1145,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
   });
 
   /* ---------- PDF con imágenes y logo ---------- */
-  const ESTILO = '.fig .f1{fill:#1F2937;stroke:#1F2937}.fig .f2{fill:#8A94A3;stroke:#8A94A3}.fig .h1{fill:#00CFCB;stroke:#00CFCB}.fig .h2{fill:#7FE3E1;stroke:#7FE3E1}.fig .b1{fill:#1F2937;stroke:none}.fig .b2{fill:#8A94A3;stroke:none}.fig .ol,.fig .ol2{stroke:#fff}.fig .e1{fill:#334155;stroke:#334155}.fig .e2{fill:#64748B;stroke:#64748B}.fig .e3{fill:#94A3B8;stroke:#94A3B8}.fig .e4{fill:#D7DDE5;stroke:#D7DDE5}.fig .bg{fill:#fff;stroke:#fff}.fig .hl{stroke:#fff}.fig .bd{stroke:#F59E0B}.fig .piso{stroke:#E3E7EC}.fig .ln{fill:none;stroke-linecap:round;stroke-linejoin:round}.fig .tf{stroke-linejoin:round}.mapa .mb{fill:#CDD4DD}.mapa .mz{fill:#DDE2E8}.mapa .mz.mp{fill:#00CFCB}.mapa .mz.ms{fill:#9FEAE8}.mapa .mi circle{fill:#00CFCB}.mapa .mil{fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round}';
+  const ESTILO = '.fig .f1{fill:#1F2937;stroke:#1F2937}.fig .f2{fill:#8A94A3;stroke:#8A94A3}.fig .h1{fill:#00CFCB;stroke:#00A9A6}.fig .lz{fill:rgba(255,255,255,.14)}.fig .sb{fill:rgba(0,0,0,.22)}.fig .lz2{fill:rgba(255,255,255,.2)}.fig .sb2{fill:rgba(31,41,55,.14)}.fig .som{fill:rgba(31,41,55,.13)}.fig .h2{fill:#7FE3E1;stroke:#7FE3E1}.fig .b1{fill:#1F2937;stroke:none}.fig .b2{fill:#8A94A3;stroke:none}.fig .ol,.fig .ol2{stroke:#fff}.fig .e1{fill:#334155;stroke:#334155}.fig .e2{fill:#64748B;stroke:#64748B}.fig .e3{fill:#94A3B8;stroke:#94A3B8}.fig .e4{fill:#D7DDE5;stroke:#D7DDE5}.fig .bg{fill:#fff;stroke:#fff}.fig .hl{stroke:#fff}.fig .bd{stroke:#F59E0B}.fig .piso{stroke:#E3E7EC}.fig .ln{fill:none;stroke-linecap:round;stroke-linejoin:round}.fig .tf{stroke-linejoin:round}.mapa .mb{fill:#CDD4DD}.mapa .mz{fill:#DDE2E8}.mapa .mz.mp{fill:#00CFCB}.mapa .mz.ms{fill:#9FEAE8}.mapa .mi circle{fill:#00CFCB}.mapa .mil{fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round}';
   const cargarScript = (src) => new Promise((ok, mal) => { if (window.jspdf) { ok(); return; } const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => mal(new Error('No se pudo cargar')); document.head.appendChild(s); });
   const lienzo = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); return [c, x]; };
   function svgAJpg(svg, w, h) {
