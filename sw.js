@@ -1,7 +1,7 @@
 /* Inquieta Entrenamientos · service worker: guarda la app en el celular para que abra sin internet.
    build_app.py cambia VERSION en cada entrega; el celular baja la versión nueva solo y la usa la próxima vez que se abra.
    Las fotos de los ejercicios (/api/img/…) se guardan aparte y no se borran al cambiar de versión. */
-const VERSION = "3.2.0";
+const VERSION = "3.2.1";
 const CACHE = 'inquieta-entrena-' + VERSION;
 const FOTOS = 'fotos-inquieta';
 const ARCHIVOS = [
