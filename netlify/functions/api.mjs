@@ -3,11 +3,12 @@
    - Datos: un solo documento con todas las colecciones. Cada cambio trae «modificado» y gana el más reciente;
      lo borrado queda como lápida para que también se borre en los otros celulares.
    - Fotos de ejercicios: /api/img/<id> (id aleatorio de 128 bits; sin datos de alumnos).
-   - Alumno: /api/r/<link> devuelve SOLO su rutina actual (sin salud ni historial). */
+   - Alumno: /api/r/<link> devuelve SOLO su rutina actual (sin salud ni historial).
+   - Alumno: POST /api/r/<link>/sesion guarda su entrenamiento (RPE, series, peso) en «sesiones», asociado a él. */
 import { getStore } from '@netlify/blobs';
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 
-const COLS = new Set(['alumnos', 'rutinas', 'clases', 'base', 'ejercicios', 'plantillas']);
+const COLS = new Set(['alumnos', 'rutinas', 'clases', 'base', 'ejercicios', 'plantillas', 'sesiones']);
 const ORIGENES = new Set(['https://guillegomezcc-boop.github.io', 'https://inquieta.netlify.app', 'http://localhost:8790', 'http://127.0.0.1:8790']);
 const MAX_DOC = 300000;
 const MAX_IMG = 4.5 * 1024 * 1024;
@@ -161,6 +162,40 @@ async function rutinaAlumno(req, token, s) {
   return json(req, { nombre: String(a.nombre || '').trim().split(/\s+/)[0], entrenadora: 'Fernanda Rojas', dias, ejercicios, actualizado });
 }
 
+// El alumno guarda su sesión: solo con su link, solo para él, con campos acotados. Llega a Fernanda con la sincronización.
+const txt = (v, n) => String(v ?? '').slice(0, n);
+const num = (v, a, b) => { if (v == null || v === '') return null; const x = Number(v); return Number.isFinite(x) ? Math.min(b, Math.max(a, x)) : null; };
+async function sesionAlumno(req, token, s) {
+  const b = await req.json().catch(() => null);
+  if (!b || typeof b !== 'object' || !/^se-[\w-]{6,40}$/.test(String(b.id || ''))) return error(req, 400, 'Sesión no válida.');
+  if (JSON.stringify(b).length > 40000) return error(req, 413, 'Sesión demasiado grande.');
+  const lista = (l, max) => (Array.isArray(l) ? l.slice(0, max) : []);
+  const doc = {
+    fecha: /^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha || '')) ? b.fecha : new Date().toISOString().slice(0, 10),
+    inicio: txt(b.inicio, 30), fin: txt(b.fin, 30), duracion: num(b.duracion, 0, 6 * 3600),
+    dia: txt(b.dia, 12), titulo: txt(b.titulo, 80), obs: txt(b.obs, 600),
+    ej: lista(b.ej, 40).map((e) => ({ n: txt(e && e.n, 120), lib: txt(e && e.lib, 60), hecho: !!(e && e.hecho), series: num(e && e.series, 0, 30), reps: txt(e && e.reps, 40), peso: txt(e && e.peso, 40), rpe: num(e && e.rpe, 1, 10), plan: txt(e && e.plan, 80) })),
+    cal: num(b.cal, 0, 30), calTotal: num(b.calTotal, 0, 30), est: num(b.est, 0, 30), estTotal: num(b.estTotal, 0, 30),
+    modificado: new Date().toISOString(),
+  };
+  for (let intento = 0; intento < 8; intento++) {
+    const e = await s.getWithMetadata('datos', { type: 'json' });
+    const D = e && e.data ? e.data : { rev: 0, docs: {} };
+    const t = Buffer.from(token);
+    const al = Object.entries(D.docs.alumnos || {}).find(([, a]) => !a._borrado && typeof a.token === 'string' && iguales(Buffer.from(a.token), t));
+    if (!al) return error(req, 404, 'Este link ya no está activo. Pídele uno nuevo a tu entrenadora.');
+    const col = D.docs.sesiones || (D.docs.sesiones = {});
+    const prev = col[b.id];
+    if (prev && prev.alumnoId !== al[0]) return error(req, 409, 'Sesión no válida.');
+    D.rev = (D.rev || 0) + 1;
+    col[b.id] = { ...doc, alumnoId: al[0], _r: D.rev };
+    const r = !e ? await s.setJSON('datos', D, { onlyIfNew: true }) : await s.setJSON('datos', D, { onlyIfMatch: e.etag });
+    if (r.modified) return json(req, { ok: true });
+    await espera(50 + Math.random() * 100 * (intento + 1));
+  }
+  return error(req, 503, 'La nube está ocupada. Se reintenta solo.');
+}
+
 export default async (req, context) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req) });
   const p = new URL(req.url).pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean);
@@ -169,6 +204,7 @@ export default async (req, context) => {
       return await imagen(req, p[1], req.method === 'PUT' ? (await leerConfig(datosStore())).c : null);
     }
     if (p[0] === 'r' && /^[\w-]{16,64}$/.test(p[1] || '') && req.method === 'GET') return await rutinaAlumno(req, p[1], datosStore());
+    if (p[0] === 'r' && /^[\w-]{16,64}$/.test(p[1] || '') && p[2] === 'sesion' && req.method === 'POST') return await sesionAlumno(req, p[1], datosStore());
     const s = datosStore();
     if (p[0] === 'estado' && req.method === 'GET') { const { c } = await leerConfig(s); return json(req, { pin: !!c.pin }); }
     if (p[0] === 'entrar' && req.method === 'POST') return await entrar(req, context, s);

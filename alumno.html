@@ -102,6 +102,61 @@ h1, h2, h3 { font-family: var(--display); margin: 0; letter-spacing: -.01em; tex
 .mapa .mb, .mapa .mz { fill: var(--mz); } .mapa .mb { fill: var(--mb); } .mapa .mz.mp { fill: var(--mp); } .mapa .mz.ms { fill: var(--ms); }
 .mapa .mi circle { fill: var(--mp); } .mapa .mil { fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .cargando { margin-top: 40px; text-align: center; color: var(--muted); }
+/* ---------- entrenamiento guiado ---------- */
+.empezar { display: grid; gap: 4px; width: 100%; margin-top: 16px; padding: 16px 18px; border: 0; border-radius: 18px; background: var(--brand); color: var(--brand-ink); text-align: left; cursor: pointer; box-shadow: var(--shadow); }
+.empezar b { font: 800 19px/1.2 var(--display); }
+.empezar span { font-size: 14px; opacity: .85; }
+.enviado { margin-top: 12px; padding: 10px 14px; border-radius: 14px; background: var(--brand-soft); font: 700 14px/1.35 var(--body); }
+.g-top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6; margin: 0 -16px; padding: 12px 16px 10px; background: var(--bg); }
+.g-fila { display: flex; align-items: center; gap: 10px; }
+.g-fase { flex: 1; min-width: 0; font: 800 15px/1.2 var(--display); }
+.g-fase small { display: block; font: 600 13px/1.3 var(--body); color: var(--muted); }
+.g-x { flex: 0 0 44px; height: 44px; border: 0; border-radius: 14px; background: var(--surface); color: var(--text); font: 800 18px/1 var(--display); cursor: pointer; box-shadow: var(--shadow); }
+.g-barras { display: grid; grid-template-columns: 2fr 5fr 2fr; gap: 4px; margin-top: 10px; }
+.g-barras span { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.g-barras i { display: block; height: 100%; background: var(--brand); }
+.g-card { margin-top: 8px; overflow: hidden; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); }
+.g-img { position: relative; aspect-ratio: 4 / 3; border-bottom: 1px solid var(--line); }
+.g-img .fig, .g-img .foto { display: block; width: 100%; height: 100%; }
+.g-img .foto { object-fit: contain; background: #0B0E13; }
+.g-cuerpo { padding: 14px 16px 18px; }
+.g-cuerpo h2 { font-size: 22px; line-height: 1.2; }
+.g-txt { margin: 10px 0 0; font-size: 16px; }
+.lados { display: inline-block; margin-top: 10px; padding: 5px 10px; border-radius: 10px; background: #FEF3C7; color: #5B4300; font: 800 12px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; }
+.reloj { display: grid; place-items: center; gap: 6px; margin-top: 14px; padding: 14px; border-radius: 16px; background: var(--bg); }
+.reloj b { font: 800 46px/1 var(--display); font-variant-numeric: tabular-nums; }
+.reloj small { font: 700 13px/1.2 var(--display); color: var(--brand-text); letter-spacing: .08em; text-transform: uppercase; }
+.btn-sec { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 50px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text); font: 800 16px/1 var(--display); cursor: pointer; }
+.btn-brand { background: var(--brand); color: var(--brand-ink); }
+.g-nav { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 10px; margin-top: 14px; padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+.g-link { display: block; width: 100%; margin-top: 8px; padding: 10px; border: 0; background: none; color: var(--muted); font: 600 14px var(--body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.reg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.reg label { display: grid; gap: 4px; min-width: 0; font: 700 11px/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.reg input { width: 100%; min-width: 0; min-height: 46px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 700 17px/1.2 var(--body); text-align: center; }
+.paso { display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; align-items: center; min-height: 46px; border-radius: 12px; border: 1px solid var(--line); overflow: hidden; }
+.paso button { height: 46px; border: 0; background: var(--bg); color: var(--text); font: 800 20px/1 var(--display); cursor: pointer; }
+.paso output { text-align: center; font: 800 18px/1 var(--display); color: var(--text); }
+.rpe-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; font: 800 13px/1 var(--display); }
+.fondo { position: fixed; inset: 0; z-index: 30; background: rgba(5, 8, 12, .45); }
+.hoja { position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; max-width: 720px; margin: 0 auto; padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); border-radius: 22px 22px 0 0; background: var(--surface); box-shadow: 0 -8px 30px rgba(0, 0, 0, .2); animation: sube .22s ease-out; }
+@keyframes sube { from { transform: translateY(30px); opacity: .4; } }
+.hoja h2 { font-size: 20px; }
+.hoja p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.rpe { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.rpe button { aspect-ratio: 1; min-height: 52px; border: 3px solid transparent; border-radius: 16px; color: #fff; font: 800 24px/1 var(--display); cursor: pointer; opacity: .9; }
+.rpe button.on { border-color: var(--text); opacity: 1; transform: scale(1.06); box-shadow: 0 4px 12px rgba(0, 0, 0, .25); }
+.rpe-txt { min-height: 26px; margin-top: 12px; text-align: center; font: 800 18px/1.3 var(--display); }
+.hoja .btn { margin-top: 12px; }
+.res { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.res div { padding: 12px; border-radius: 14px; background: var(--brand-soft); }
+.res b { display: block; font: 800 22px/1.1 var(--display); }
+.res span { font: 700 11px/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--brand-text); }
+.res .ancho { grid-column: 1 / -1; }
+.res-lista { margin: 14px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.res-lista li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); font-size: 15px; }
+.res-lista small { display: block; color: var(--muted); font-size: 13px; }
+textarea.obs { width: 100%; min-height: 84px; margin-top: 14px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 16px/1.4 var(--body); resize: vertical; }
+.ok-caja { margin-top: 18px; padding: 18px; border-radius: 18px; background: var(--brand); color: var(--brand-ink); text-align: center; font: 800 18px/1.35 var(--display); }
 @media (prefers-reduced-motion: reduce) { .fig animate, .fig animateTransform { display: none; } }
 </style>
 </head>
@@ -677,6 +732,7 @@ const FIG = (() => {
 })();
 if (typeof module !== 'undefined') module.exports = FIG;
 
+
 /* Inquieta · biblioteca inicial de ejercicios (dibujos propios, ver figura.js).
    Cada ejercicio: id, n (nombre), g (grupo), m (músculos principales), s (secundarios), al (cómo aparece en sus planillas),
    f (posturas), eq (implementos que se mueven), lin (cables/bandas), esc (máquinas y bancos fijos). */
@@ -1006,6 +1062,23 @@ const EJ = (() => {
     f: [{ c: [50, 63], t: 90, p: [[66, AP], [33, 81]], m: dos([63, 63]), ko: [null, [0.2, 1]] }, { c: [55, 63], t: 86, p: [[66, AP], [36, 81]], m: dos([70, 62]), ko: [null, [0.2, 1]] }] });
   add({ id: 'sentadilla-profunda', n: 'Sentadilla profunda asistida', g: 'movilidad', m: ['cuadriceps', 'gluteos'], s: ['pantorrillas'], al: ['sentadilla profunda', 'sentadilla asistida'], zoom: 0.95,
     f: [{ ...PIE, p: pies(61, 57.5), m: dos([80, 36]) }, { c: [50, 72], t: 72, p: pies(61, 57.5), m: dos([78, 48]) }], lin: [{ k: 'trx', de: [100, 6], a: 'mm', cl: 'e2', w: 1.4 }] });
+  /* ---------- CALENTAMIENTO (movilidad dinámica) ----------
+     Movimientos de entrada en calor: suaves, en ciclo y sin rebotes. Los usa el entrenamiento guiado del alumno. */
+  const circ = (k, n, r, fase = 0) => Array.from({ length: n }, (_, i) => { const a = ((i / n) * 360 + fase) * Math.PI / 180; return [Math.cos(a) * r, Math.sin(a) * r]; })[k];
+  const FRENTE = { v: 'f', c: [60, 47], p: [[64.5, AP], [55.5, AP]] };
+  add({ id: 'cuello-movilidad', n: 'Movilidad de cuello', g: 'movilidad', m: ['trapecio'], al: ['movilidad de cuello', 'cuello', 'inclinacion de cuello'], ciclo: true, dur: 6,
+    f: [0, 34, 0, -34].map((cab) => ({ ...FRENTE, cab, m: dos([66, 50], [54, 50]) })) });
+  add({ id: 'rotacion-hombros', n: 'Rotación de hombros', g: 'movilidad', m: ['hombros'], s: ['trapecio'], al: ['rotacion de hombros', 'rotaciones de hombros', 'circulos de hombros', 'hombros atras', 'molino'], ciclo: true, dur: 4.2,
+    f: [0, 1, 2, 3, 4, 5].map((k) => { const [x, y] = circ(k, 6, 24.4, 90); return { ...PIE, m: dos([58 + x, 24 + y], [57.4 + x, 24.4 + y]), co: [[x >= 0 ? 1 : -1, -0.2], [x >= 0 ? 1 : -1, -0.2]] }; }) });
+  add({ id: 'circulos-brazos', n: 'Círculos de brazos', g: 'movilidad', m: ['hombros'], s: ['espalda'], al: ['circulos de brazos', 'circulos con los brazos', 'movilidad de brazos', 'rotacion de brazos'], ciclo: true, dur: 2.4,
+    f: [0, 1, 2, 3].map((k) => { const [x, y] = circ(k, 4, 4.5); return { ...FRENTE, m: dos([89 + x, 25 + y], [31 - x, 25 + y]) }; }) });
+  add({ id: 'rotacion-cadera', n: 'Rotación de cadera', g: 'movilidad', m: ['gluteos', 'oblicuos'], s: ['lumbares'], al: ['rotacion de cadera', 'rotaciones de cadera', 'circulos de cadera', 'movilidad de cadera'], ciclo: true, dur: 3.6,
+    f: [0, 1, 2, 3].map((k) => { const [x, y] = circ(k, 4, 3.4); return { v: 'f', c: [60 + x, 48 + y * 0.35], t: 90 + x * 1.6, p: [[65.5, AP], [54.5, AP]], m: dos([68, 46], [52, 46]), co: [[1, 0.2], [-1, 0.2]] }; }) });
+  add({ id: 'marcha-activa', n: 'Marcha activa', g: 'movilidad', m: ['cuadriceps'], s: ['pantorrillas', 'abdominales'], al: ['marcha activa', 'marcha', 'marcha en el lugar', 'caminata en el lugar'], dur: 1.7,
+    f: [{ c: [58, 47], t: 91, p: [[67, 63.5], [57, AP]], pie: [25, 0], ko: [[1, -0.4], null], m: dos(['h', -7, 19], ['h', 9, 14]) }, { c: [58, 47], t: 91, p: [[57, AP], [67, 63.5]], pie: [0, 25], ko: [null, [1, -0.4]], m: dos(['h', 9, 14], ['h', -7, 19]) }] });
+  add({ id: 'estocada-rotacion', n: 'Estocada con rotación', g: 'movilidad', m: ['oblicuos', 'cuadriceps', 'gluteos'], s: ['isquios'], al: ['estocada con rotacion', 'estocada con giro', 'zancada con rotacion', 'movilidad dinamica'],
+    f: [{ c: [52, 47], t: 90, p: pies(53.5, 50.5), pie: [0, 0], m: dos([72, 30], [71, 31]) }, { c: [59, 62], t: 90, p: [[73, AP], [44, 79.4]], pie: [0, 58], ko: [null, [0.3, 1]], m: dos([82, 41], [40, 41]) }] });
+
   /* ---------- ESTIRAMIENTOS ----------
      En turquesa va el músculo que se estira. Se animan lento (entrar al estiramiento y volver) y el ícono queda en la
      postura estirada. Se miden en tiempo (30 s) al agregarlos a una rutina. */
@@ -1060,6 +1133,7 @@ const EJ = (() => {
 })();
 if (typeof module !== 'undefined') module.exports = EJ;
 
+
 (() => {
   const local = /netlify\.app$|^localhost$|^127\.0\.0\.1$/.test(location.hostname);
   const API = local ? '/api' : 'https://inquieta.netlify.app/api';
@@ -1107,7 +1181,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
     x.nota = e.no || x.nota;
     return x;
   }
-  const icono = (g) => (g === 'cardio' ? 'pulso' : g === 'movilidad' ? 'estira' : '');
+  const icono = (g) => (g === 'cardio' ? 'pulso' : g === 'movilidad' || g === 'estiramientos' ? 'estira' : '');
   function imagen(x) {
     if (x.combo) return `<div class="combo">${x.combo.map((y) => `<div>${imagen(y)}</div>`).join('')}</div>`;
     if (x.img) return `<img class="foto" src="${API}/img/${esc(x.img)}" alt="${esc(x.n)}" loading="lazy" decoding="async">`;
@@ -1132,6 +1206,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
     const f = document.querySelector('[data-fin]'); if (f) f.hidden = !(ej.length && n === ej.length);
   }
   function pintar() {
+    if (G) { pintarGuiado(); return; }
     if (!R.dias.length) {
       app.innerHTML = `<h1 class="hola">Hola, ${esc(R.nombre)} 👋</h1><div class="caja"><h2>Tu rutina viene en camino</h2><p>Tu entrenadora todavía no te asigna ejercicios. Vuelve a abrir este link más tarde.</p></div>`;
       return;
@@ -1142,6 +1217,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
     app.innerHTML = `<h1 class="hola">Hola, ${esc(R.nombre)} 👋</h1>
       <p class="sub">Esta es tu rutina${fecha ? ` · actualizada el ${fecha.getDate()} ${MES[fecha.getMonth()]}` : ''}. Marca cada ejercicio cuando lo termines.</p>
       ${R.dias.length > 1 ? `<div class="dias" role="tablist">${R.dias.map((d, i) => `<button type="button" role="tab" class="dia ${i === dia ? 'on' : ''}" data-dia="${i}" aria-selected="${i === dia}">Día ${i + 1}${d.titulo && !/^d[ií]a \d+$/i.test(d.titulo) ? `<small>${esc(d.titulo)}</small>` : ''}</button>`).join('')}</div>` : ''}
+      ${botonGuiado()}
       <div class="prog"><div class="prog-t">${R.dias.length > 1 ? `Día ${dia + 1}` : 'Tu progreso de hoy'}<span data-prog></span></div><div class="barra"><i></i></div></div>
       <ol class="lista">${D.ej.map((e, i) => { const x = info(e); return `<li class="ej ${h.has(i) ? 'hecho' : ''}" data-i="${i}">
         <div class="ej-img">${imagen(x)}<span class="ej-num">${i + 1}</span>${(x.fig || x.img) && x.m.length ? `<span class="ej-mapa">${FIG.mapa(x.m, x.s, { lado: 'auto', icono: icono(x.g) })}</span>` : ''}</div>
@@ -1156,6 +1232,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
     progreso();
   }
   app.addEventListener('click', (e) => {
+    if (clickGuiado(e)) return;
     const d = e.target.closest('[data-dia]');
     if (d) { dia = +d.dataset.dia; guardar(claveDia(), dia); pintar(); window.scrollTo({ top: 0 }); return; }
     const c = e.target.closest('[data-chk]');
@@ -1169,6 +1246,210 @@ if (typeof module !== 'undefined') module.exports = EJ;
       progreso(); return;
     }
     if (e.target.closest('[data-pdf]')) hacerPdf(e.target.closest('[data-pdf]'));
+  });
+
+  /* ---------- entrenamiento guiado: calentamiento → ejercicios con RPE → estiramiento → resumen ----------
+     Todo se guarda en el celular a medida que avanza (si se cierra, sigue donde quedó) y al final se envía a Fernanda
+     (POST /api/r/<link>/sesion). Si no hay internet, queda en cola y se envía al volver a abrir el link. */
+  const CAL = [
+    { id: 'marcha-activa', ti: 60, txt: 'Marcha en el lugar subiendo las rodillas a la altura de la cadera. Los brazos acompañan el movimiento.' },
+    { id: 'cuello-movilidad', re: '5 por lado', txt: 'Lleva la oreja hacia el hombro, lento y sin forzar. Hombros relajados y abajo.' },
+    { id: 'rotacion-hombros', re: '10 atrás y 10 adelante', txt: 'Brazos estirados dibujando círculos grandes y controlados. El abdomen firme.' },
+    { id: 'circulos-brazos', ti: 30, txt: 'Brazos a los lados a la altura de los hombros, círculos pequeños. A la mitad cambia de sentido.' },
+    { id: 'rotacion-cadera', re: '8 por lado', txt: 'Manos en la cintura y pies al ancho de la cadera. Círculos amplios con la cadera, sin mover los pies.' },
+    { id: 'movilidad-tobillo', re: '10 por lado', txt: 'Lleva la rodilla hacia adelante, sobre la punta del pie, sin levantar el talón.' },
+    { id: 'sentadilla-libre', re: '10', txt: 'Sin peso. Espalda neutra, peso en los talones y rodillas en la dirección de la punta de los pies.' },
+    { id: 'estocada-rotacion', re: '6 por lado', txt: 'Da un paso largo, baja controlado y gira el tronco hacia la pierna de adelante. Vuelve y cambia.' },
+  ];
+  const EST = [
+    { id: 'estiramiento-cuadriceps', ti: 30, lados: true, txt: 'Toma el pie por detrás y acerca el talón al glúteo. Rodillas juntas y cadera hacia adelante.' },
+    { id: 'estiramiento-isquios', ti: 30, lados: true, txt: 'Talón adelante con la pierna estirada. Inclínate desde la cadera con la espalda recta.' },
+    { id: 'rodilla-pecho', ti: 30, lados: true, txt: 'Acostada, abraza una rodilla hacia el pecho. La espalda queda apoyada en el suelo.' },
+    { id: 'estiramiento-pantorrilla', ti: 30, lados: true, txt: 'Manos en la pared, pierna de atrás estirada y el talón apoyado en el suelo.' },
+    { id: 'flexor-cadera', ti: 30, lados: true, txt: 'Rodilla de atrás apoyada. Lleva la cadera adelante sin arquear la espalda.' },
+    { id: 'postura-nino', ti: 40, txt: 'Siéntate sobre los talones, estira los brazos adelante y respira lento.' },
+    { id: 'estiramiento-pecho', ti: 30, lados: true, txt: 'Mano en la pared a la altura del hombro y gira el cuerpo hacia el lado contrario.' },
+    { id: 'estiramiento-hombro', ti: 30, lados: true, txt: 'Cruza el brazo por delante del pecho y acércalo con la otra mano, sin subir el hombro.' },
+    { id: 'estiramiento-triceps', ti: 30, lados: true, txt: 'Codo arriba y mano detrás de la nuca. Empuja suave el codo con la otra mano.' },
+  ];
+  const RPE_T = ['', 'Muy, muy fácil', 'Muy fácil', 'Fácil', 'Moderado', 'Algo exigente', 'Exigente', 'Muy exigente', 'Muy duro', 'Extremadamente duro', 'Esfuerzo máximo'];
+  const RPE_C = ['', '#16A34A', '#22C55E', '#65A30D', '#A3A30D', '#CA8A04', '#EA8A0C', '#EA580C', '#DC2626', '#B91C1C', '#7F1D1D'];
+  const chipRpe = (n) => (n ? `<span class="rpe-chip" style="background:${RPE_C[n]};color:#fff">RPE ${n} · ${RPE_T[n]}</span>` : '');
+  const claveSes = () => `inq-r-${token}-ses`;
+  const claveCola = () => `inq-r-${token}-cola`;
+  const claveEnviado = () => `inq-r-${token}-enviado-${HOY}-${dia}`;
+  let G = null; // sesión guiada en curso
+  let RPE_SEL = null; let RELOJ = null;
+  const nuevoId = () => 'se-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const guardarG = () => guardar(claveSes(), G);
+  const pasos = () => [...CAL.map((_, i) => ['cal', i]), ...R.dias[G.dia].ej.map((_, i) => ['ej', i]), ...EST.map((_, i) => ['est', i]), ['fin', 0]];
+  function porDefecto(e) {
+    return { hecho: false, series: +e.se || null, reps: e.ti ? seg(e.ti) : String(e.re || ''), peso: String(e.pe || ''), rpe: null };
+  }
+  function empezar() {
+    const g = leer(claveSes(), null);
+    if (g && g.fecha === HOY && g.dia === dia && !g.enviado && R.dias[g.dia]) { G = g; }
+    else G = { id: nuevoId(), dia, fecha: HOY, inicio: new Date().toISOString(), paso: 0, cal: CAL.map(() => false), ej: R.dias[dia].ej.map(porDefecto), est: EST.map(() => false), obs: '' };
+    guardarG(); pintar(); window.scrollTo({ top: 0 });
+  }
+  function botonGuiado() {
+    const g = leer(claveSes(), null);
+    const enCurso = g && g.fecha === HOY && g.dia === dia && !g.enviado && R.dias[dia];
+    const ya = leer(claveEnviado(), false);
+    return `${ya ? '<div class="enviado">Entrenamiento de hoy enviado a tu entrenadora ✓</div>' : ''}
+      <button type="button" class="empezar" data-g="empezar"><b>${enCurso ? 'Continuar mi entrenamiento' : ya ? 'Entrenar otra vez' : 'Empezar entrenamiento guiado'}</b>
+      <span>${enCurso ? `Vas en el paso ${g.paso + 1} de ${CAL.length + R.dias[dia].ej.length + EST.length + 1}` : 'Calentamiento, ejercicios con los monitos y estiramiento final'}</span></button>`;
+  }
+  const PRE_FIG = (id) => PRE.get(id) || null;
+  const musTxt = (l) => l.map((k) => EJ.MUS[k] || k).join(' · ');
+  function reloj(it, k) {
+    if (!it.ti) return '';
+    const r = RELOJ && RELOJ.k === k ? RELOJ : null;
+    const lado = r && it.lados ? (r.lado === 1 ? 'Lado 1' : 'Lado 2') : '';
+    const q = r ? Math.max(0, Math.ceil((r.fin - Date.now()) / 1000)) : it.ti;
+    return `<div class="reloj" data-reloj><small>${r ? (r.listo ? '¡Listo!' : lado || 'Mantén') : it.lados ? `${it.ti} s por lado` : 'Tiempo'}</small><b data-reloj-n>${r && r.listo ? '✓' : seg(q).replace(' s', '')}${r && r.listo ? '' : '<small style="font-size:16px"> s</small>'}</b>
+      ${r && !r.listo ? '' : `<button type="button" class="btn-sec btn-brand" data-g="reloj">${r && r.listo ? 'Otra vez' : `▶ Iniciar ${it.ti} s${it.lados ? ' por lado' : ''}`}</button>`}</div>`;
+  }
+  function pita(f = 1200, d = 0.18) {
+    try { const A = pita.ac || (pita.ac = new (window.AudioContext || window.webkitAudioContext)()); const o = A.createOscillator(); const g = A.createGain(); o.type = 'square'; o.frequency.value = f; g.gain.value = 0.15; o.connect(g); g.connect(A.destination); o.start(); o.stop(A.currentTime + d); } catch (e) { /* sin audio */ }
+    if (navigator.vibrate) navigator.vibrate(200);
+  }
+  function tickReloj() {
+    if (!RELOJ || RELOJ.listo) return;
+    const q = Math.ceil((RELOJ.fin - Date.now()) / 1000);
+    const n = document.querySelector('[data-reloj-n]');
+    if (q <= 0) {
+      if (RELOJ.lados && RELOJ.lado === 1) { RELOJ.lado = 2; RELOJ.fin = Date.now() + RELOJ.ti * 1000; pita(900, 0.3); pintar(); return; }
+      RELOJ.listo = true; clearInterval(RELOJ.int); pita(1500, 0.5); pintar(); return;
+    }
+    if (n) n.innerHTML = `${q}<small style="font-size:16px"> s</small>`;
+  }
+  function pararReloj() { if (RELOJ) clearInterval(RELOJ.int); RELOJ = null; }
+  function pintarGuiado() {
+    const P = pasos(); if (G.paso >= P.length) G.paso = P.length - 1;
+    const [t, i] = P[G.paso]; const D = R.dias[G.dia];
+    const nCal = CAL.length; const nEj = D.ej.length; const nEst = EST.length;
+    const pc = (a, b) => Math.round((Math.max(0, Math.min(a, b)) / b) * 100);
+    const avance = `<div class="g-barras"><span><i style="width:${pc(t === 'cal' ? i : nCal, nCal)}%"></i></span><span><i style="width:${pc(t === 'ej' ? i : t === 'cal' ? 0 : nEj, nEj)}%"></i></span><span><i style="width:${pc(t === 'est' ? i : t === 'fin' ? nEst : 0, nEst)}%"></i></span></div>`;
+    const fase = t === 'cal' ? ['Calentamiento', `${i + 1} de ${nCal}`] : t === 'ej' ? [`Día ${G.dia + 1}${D.titulo && !/^d[ií]a \d+$/i.test(D.titulo) ? ' · ' + D.titulo : ''}`, `Ejercicio ${i + 1} de ${nEj}`] : t === 'est' ? ['Estiramiento final', `${i + 1} de ${nEst}`] : ['Resumen', '¡Terminaste!'];
+    const top = `<div class="g-top"><div class="g-fila"><div class="g-fase">${esc(fase[0])}<small>${esc(fase[1])}</small></div><button type="button" class="g-x" data-g="salir" aria-label="Volver a mi rutina (queda guardado)">✕</button></div>${avance}</div>`;
+    const nav = (sig = 'Siguiente') => `<div class="g-nav">${G.paso > 0 ? '<button type="button" class="btn-sec" data-g="atras">Atrás</button>' : '<span></span>'}<button type="button" class="btn" data-g="sig">${sig}</button></div>`;
+    if (t === 'cal' || t === 'est') {
+      const it = (t === 'cal' ? CAL : EST)[i]; const f = PRE_FIG(it.id); if (!f) { G.paso += 1; return pintarGuiado(); }
+      app.innerHTML = `${top}<div class="g-card"><div class="g-img">${FIG.figura(f, { animar: true })}</div><div class="g-cuerpo">
+        <h2>${esc(f.n)}</h2>
+        <div class="datos">${it.ti ? `<div class="dato"><b>${seg(it.ti)}</b><span>${it.lados ? 'por lado' : 'tiempo'}</span></div>` : ''}${it.re ? `<div class="dato"><b>${esc(it.re)}</b><span>repeticiones</span></div>` : ''}</div>
+        ${it.lados ? '<span class="lados">Hazlo por ambos lados</span>' : ''}
+        <p class="g-txt">${esc(it.txt)}${t === 'est' ? ' Mantén la posición sin rebotar y respira lento.' : ''}</p>
+        <p class="mus">${t === 'est' ? 'Estira' : 'Activa'}: ${esc(musTxt(f.m || []))}</p>
+        ${reloj(it, `${t}${i}`)}
+      </div></div>${nav(G.paso === P.length - 2 ? 'Ver resumen' : 'Siguiente')}
+      ${i === 0 ? `<button type="button" class="g-link" data-g="saltarFase">${t === 'cal' ? 'Ya calenté: ir a los ejercicios' : 'Saltar el estiramiento'}</button>` : ''}`;
+      return;
+    }
+    if (t === 'ej') {
+      const e = D.ej[i]; const x = info(e); const r = G.ej[i];
+      app.innerHTML = `${top}<div class="g-card"><div class="g-img">${imagen(x)}</div><div class="g-cuerpo">
+        <h2>${esc(e.n)}</h2>${datos(e)}
+        ${x.nota ? `<p class="tec"><b>Técnica</b>${esc(x.nota)}</p>` : ''}
+        ${x.m.length ? `<p class="mus">Trabaja: ${esc(musTxt(x.m))}</p>` : ''}
+        <div class="reg"><label>Series<div class="paso"><button type="button" data-g="serie" data-d="-1" aria-label="Menos series">−</button><output>${r.series ?? '–'}</output><button type="button" data-g="serie" data-d="1" aria-label="Más series">+</button></div></label>
+          <label>${e.ti ? 'Tiempo' : 'Reps'}<input data-gc="reps" value="${esc(r.reps)}" inputmode="text" autocomplete="off"></label>
+          <label>Peso<input data-gc="peso" value="${esc(r.peso)}" placeholder="—" autocomplete="off"></label></div>
+        ${r.rpe ? `<p class="g-txt">Tu esfuerzo: ${chipRpe(r.rpe)} <button type="button" class="g-link" style="display:inline;width:auto;margin:0" data-g="rpe">Cambiar</button></p>` : ''}
+      </div></div>
+      <div class="g-nav">${G.paso > 0 ? '<button type="button" class="btn-sec" data-g="atras">Atrás</button>' : '<span></span>'}<button type="button" class="btn" data-g="termine">${r.rpe ? 'Siguiente' : 'Terminé este ejercicio'}</button></div>
+      <button type="button" class="g-link" data-g="saltarEj">No lo hice hoy: saltar</button>
+      ${RPE_SEL !== null ? hojaRpe() : ''}`;
+      return;
+    }
+    // resumen
+    const hechos = G.ej.filter((r) => r.hecho); const con = G.ej.map((r, k) => [r, k]).filter(([r]) => r.rpe);
+    const prom = con.length ? con.reduce((a, [r]) => a + r.rpe, 0) / con.length : 0;
+    const max = con.slice().sort((a, b) => b[0].rpe - a[0].rpe)[0];
+    const dur = Math.max(1, Math.round((Date.now() - Date.parse(G.inicio)) / 60000));
+    const series = hechos.reduce((a, r) => a + (+r.series || 0), 0);
+    app.innerHTML = `${top}
+      <h1 class="hola" style="margin-top:8px">¡Bien hecho, ${esc(R.nombre)}! 💪</h1>
+      <div class="res"><div><b>${dur} min</b><span>Duración</span></div><div><b>${hechos.length} de ${G.ej.length}</b><span>Ejercicios</span></div>
+        <div><b>${series || '–'}</b><span>Series</span></div><div><b style="color:${prom ? RPE_C[Math.round(prom)] : 'inherit'}">${prom ? prom.toFixed(1).replace('.', ',') : '–'}</b><span>Esfuerzo promedio</span></div>
+        ${max ? `<div class="ancho"><b style="font-size:17px">${esc(D.ej[max[1]].n)}</b><span>Lo más exigente · RPE ${max[0].rpe}</span></div>` : ''}</div>
+      <ul class="res-lista">${G.ej.map((r, k) => `<li><span>${esc(D.ej[k].n)}<small>${r.hecho ? [r.series ? `${r.series} series` : '', r.reps, r.peso].filter(Boolean).map(esc).join(' · ') : 'No lo hiciste hoy'}</small></span>${r.rpe ? `<span class="rpe-chip" style="background:${RPE_C[r.rpe]};color:#fff">${r.rpe}</span>` : ''}</li>`).join('')}</ul>
+      <textarea class="obs" data-gc="obs" placeholder="¿Cómo te sentiste? Molestias, dudas o algo que quieras contarle a tu entrenadora (opcional)">${esc(G.obs)}</textarea>
+      ${G.enviado ? `<div class="ok-caja">Enviado ✓<br><span style="font-size:15px;font-weight:600">Tu entrenadora ya puede verlo.</span></div><div class="g-nav" style="grid-template-columns:1fr"><button type="button" class="btn" data-g="cerrar">Volver a mi rutina</button></div>`
+        : `<div class="g-nav"><button type="button" class="btn-sec" data-g="atras">Atrás</button><button type="button" class="btn" data-g="enviar">Guardar y enviar</button></div><p class="nota" data-g-nota style="text-align:center">Se guarda en tu celular y le llega a tu entrenadora.</p>`}`;
+  }
+  function hojaRpe() {
+    const n = RPE_SEL;
+    return `<div class="fondo" data-g="rpeCerrar"></div><div class="hoja" role="dialog" aria-label="Esfuerzo del ejercicio">
+      <h2>¿Qué tan difícil fue este ejercicio?</h2><p>Elige del 1 (muy fácil) al 10 (esfuerzo máximo).</p>
+      <div class="rpe">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((k) => `<button type="button" class="${n === k ? 'on' : ''}" style="background:${RPE_C[k]}" data-g="rpeElegir" data-n="${k}" aria-pressed="${n === k}" aria-label="${k}: ${RPE_T[k]}">${k}</button>`).join('')}</div>
+      <div class="rpe-txt" style="color:${n ? RPE_C[n] : 'var(--muted)'}">${n ? RPE_T[n] : 'Toca un número'}</div>
+      <button type="button" class="btn" data-g="rpeOk" ${n ? '' : 'disabled'}>Confirmar</button>
+      <button type="button" class="g-link" data-g="rpeNo">Ahora no</button></div>`;
+  }
+  function resumenDoc() {
+    const D = R.dias[G.dia];
+    const ej = G.ej.map((r, k) => { const e = D.ej[k]; return { n: e.n, lib: e.lib || info(e).id || '', hecho: !!r.hecho, series: r.hecho ? r.series : null, reps: r.hecho ? r.reps : '', peso: r.hecho ? r.peso : '', rpe: r.rpe, plan: [e.se ? `${e.se} ×` : '', e.ti ? seg(e.ti) : e.re || '', e.pe || ''].filter(Boolean).join(' ') || e.plan || '' }; });
+    const fin = G.fin || new Date().toISOString();
+    return { id: G.id, fecha: G.fecha, inicio: G.inicio, fin, duracion: Math.round((Date.parse(fin) - Date.parse(G.inicio)) / 1000), dia: D.letra || String(G.dia + 1), titulo: D.titulo || '', obs: G.obs || '', ej,
+      cal: G.cal.filter(Boolean).length, calTotal: CAL.length, est: G.est.filter(Boolean).length, estTotal: EST.length };
+  }
+  async function mandar(doc) {
+    const r = await fetch(`${API}/r/${token}/sesion`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(doc) });
+    if (!r.ok && r.status >= 500) throw new Error('nube');
+    return r.ok;
+  }
+  async function enviarCola() {
+    const cola = leer(claveCola(), []); if (!cola.length || !navigator.onLine) return;
+    const quedan = [];
+    for (const d of cola) { try { if (!(await mandar(d))) continue; } catch (e) { quedan.push(d); } }
+    guardar(claveCola(), quedan);
+  }
+  addEventListener('online', () => { if (R) enviarCola(); });
+  async function enviar(btn) {
+    G.fin = G.fin || new Date().toISOString();
+    const doc = resumenDoc(); btn.disabled = true; btn.textContent = 'Enviando…';
+    let ok = false;
+    try { ok = await mandar(doc); } catch (e) { ok = false; }
+    if (!ok) { const cola = leer(claveCola(), []).filter((d) => d.id !== doc.id); cola.push(doc); guardar(claveCola(), cola); }
+    G.enviado = true; guardarG(); guardar(claveEnviado(), true);
+    const h = new Set(leer(claveChk(), [])); G.ej.forEach((r, k) => { if (r.hecho) h.add(k); }); guardar(claveChk(), [...h]);
+    pintar();
+    if (!ok) { const n = document.querySelector('.ok-caja span'); if (n) n.textContent = 'Quedó guardado. Se envía solo cuando tengas internet.'; }
+  }
+  function ir(d) { pararReloj(); RPE_SEL = null; G.paso = Math.max(0, Math.min(pasos().length - 1, G.paso + d)); guardarG(); pintar(); window.scrollTo({ top: 0 }); }
+  function clickGuiado(e) {
+    const b = e.target.closest('[data-g]'); if (!b) return false;
+    const a = b.dataset.g;
+    if (a === 'empezar') { empezar(); return true; }
+    if (!G) return false;
+    const [t, i] = pasos()[G.paso];
+    if (a === 'salir' || a === 'cerrar') { pararReloj(); RPE_SEL = null; G = null; pintar(); window.scrollTo({ top: 0 }); return true; }
+    if (a === 'atras') { ir(-1); return true; }
+    if (a === 'sig') { if (t === 'cal') G.cal[i] = true; if (t === 'est') G.est[i] = true; if (pasos()[G.paso + 1][0] === 'fin') G.fin = new Date().toISOString(); ir(1); return true; }
+    if (a === 'saltarFase') { const P = pasos(); const k = P.findIndex(([x], j) => j > G.paso && x !== t); pararReloj(); G.paso = k; if (P[k][0] === 'fin') G.fin = new Date().toISOString(); guardarG(); pintar(); window.scrollTo({ top: 0 }); return true; }
+    if (a === 'reloj') {
+      const it = (t === 'cal' ? CAL : EST)[i]; pararReloj();
+      RELOJ = { k: `${t}${i}`, ti: it.ti, lados: !!it.lados, lado: 1, fin: Date.now() + it.ti * 1000, listo: false };
+      RELOJ.int = setInterval(tickReloj, 250); pita(1500, 0.12); pintar(); return true;
+    }
+    if (a === 'serie') { const r = G.ej[i]; r.series = Math.max(0, Math.min(20, (+r.series || 0) + +b.dataset.d)); guardarG(); b.parentElement.querySelector('output').textContent = r.series; return true; }
+    if (a === 'termine') { if (G.ej[i].rpe) { ir(1); return true; } G.ej[i].hecho = true; RPE_SEL = 0; guardarG(); pintar(); return true; }
+    if (a === 'rpe') { RPE_SEL = G.ej[i].rpe || 0; pintar(); return true; }
+    if (a === 'rpeElegir') { RPE_SEL = +b.dataset.n; if (navigator.vibrate) navigator.vibrate(10); pintar(); return true; }
+    if (a === 'rpeOk') { G.ej[i].rpe = RPE_SEL; G.ej[i].hecho = true; RPE_SEL = null; guardarG(); ir(1); return true; }
+    if (a === 'rpeNo') { RPE_SEL = null; ir(1); return true; }
+    if (a === 'rpeCerrar') { RPE_SEL = null; pintar(); return true; }
+    if (a === 'saltarEj') { G.ej[i].hecho = false; G.ej[i].rpe = null; ir(1); return true; }
+    if (a === 'enviar') { enviar(b); return true; }
+    return false;
+  }
+  app.addEventListener('input', (e) => {
+    const k = e.target.dataset && e.target.dataset.gc; if (!k || !G) return;
+    if (k === 'obs') G.obs = e.target.value.slice(0, 600);
+    else { const [t, i] = pasos()[G.paso]; if (t === 'ej') G.ej[i][k] = e.target.value.slice(0, 40); }
+    guardarG();
   });
 
   /* ---------- PDF con imágenes y logo ---------- */
@@ -1279,6 +1560,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { app.innerHTML = `<div class="caja"><h2>No encontramos tu rutina</h2><p>${esc(j.mensaje || 'Revisa el link o pídele uno nuevo a tu entrenadora.')}</p></div>`; return; }
       R = j; R.dias = (R.dias || []).filter((d) => (d.ej || []).length);
+      enviarCola();
       dia = Math.min(+leer(claveDia(), 0) || 0, Math.max(0, R.dias.length - 1));
       document.title = `Rutina de ${R.nombre} · Fernanda Rojas`;
       pintar();
