@@ -794,6 +794,9 @@ if (typeof module !== 'undefined') module.exports = EJ;
   const d0 = new Date();
   const HOY = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, '0')}-${String(d0.getDate()).padStart(2, '0')}`;
   const seg = (n) => { n = +n || 0; if (n < 60) return `${n} s`; if (n % 60 === 0) return `${n / 60} min`; return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')} min`; };
+  // «20-30 m» es distancia, «40 s» es tiempo; «10 negativos» o «12pp» ya dicen qué son.
+  const conUnidad = (re) => /[a-záéíóúñ]$/i.test(String(re || '').trim());
+  const etiquetaRe = (re) => { const t = String(re || '').trim().toLowerCase(); return /\d\s*(m|mt|mts|metros)$/.test(t) ? 'distancia' : /\d\s*(s|seg|segundos|min|minutos)$/.test(t) ? 'tiempo' : 'reps'; };
   const PRE = new Map(EJ.lista.map((f) => [f.id, f]));
   const leer = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sin espacio */ } };
@@ -837,7 +840,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
   function datos(e) {
     const t = [];
     if (e.se) t.push(['series', e.se]);
-    if (e.ti) t.push(['tiempo', seg(e.ti)]); else if (e.re && e.se) t.push(['reps', e.re]);
+    if (e.ti) t.push(['tiempo', seg(e.ti)]); else if (e.re && e.se) t.push([etiquetaRe(e.re), e.re]);
     if (e.pe) t.push(['peso', e.pe]);
     if (e.de && e.se) t.push(['descanso', seg(e.de)]);
     if (t.length) return `<div class="datos">${t.map(([k, v]) => `<div class="dato"><b>${esc(v)}</b><span>${k}</span></div>`).join('')}</div>`;
@@ -964,7 +967,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
         doc.text(sinEmoji(`Día ${di + 1}${D.titulo && !/^d[ií]a \d+$/i.test(D.titulo) ? ' · ' + D.titulo : ''}`), M + 4, y + 6.8); y += 15;
         for (let i = 0; i < D.ej.length; i++) {
           const e = D.ej[i]; const x = info(e);
-          const det = [e.se ? `${e.se} series` : '', e.ti ? seg(e.ti) : e.re && e.se ? `${e.re} reps` : '', e.pe || '', e.de && e.se ? `descanso ${seg(e.de)}` : ''].filter(Boolean).join('  ·  ') || e.plan || '';
+          const det = [e.se ? `${e.se} series` : '', e.ti ? seg(e.ti) : e.re && e.se ? `${e.re}${conUnidad(e.re) ? '' : ' reps'}` : '', e.pe || '', e.de && e.se ? `descanso ${seg(e.de)}` : ''].filter(Boolean).join('  ·  ') || e.plan || '';
           doc.setFontSize(9);
           const notas = x.nota ? doc.splitTextToSize(sinEmoji('Técnica: ' + x.nota), W - 2 * M - 46) : [];
           const alto = Math.max(30, 17 + notas.length * 4 + (x.m.length ? 5 : 0));
