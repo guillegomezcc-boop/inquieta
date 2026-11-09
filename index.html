@@ -722,7 +722,7 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
      así el sitio publicado no muestra nombres ni datos de salud.
    - Después corre la misma app de claude.ai (editor.js, dentro de arrancarApp) con esta base local. */
 (() => {
-  const VERSION = "3.5.0";
+  const VERSION = "3.6.0";
   const CLAVE = 'inquieta-entrena-datos';
   const CLAVE_META = 'inquieta-entrena-meta';
   const COLS = ['alumnos', 'rutinas', 'clases', 'base', 'ejercicios', 'plantillas'];
@@ -3425,6 +3425,8 @@ function vistaInicio() {
     ${hoy ? `<div class="sec">Hoy</div><ul class="lista">${tarjetaClase(hoy)}</ul>${(hoy.bloques || []).some(conTiempo) ? `<a class="btn btn-hoy" href="#crono-${esc(hoy.id)}-${(hoy.bloques || []).findIndex(conTiempo)}">${ICON.play}Empezar la clase de hoy</a>` : ''}` : ''}
     <div class="sec">Plantillas</div>
     <ul class="lista"><li><a class="tarjeta" href="#plantillas"><span class="letra ic">${ICON.rutina}</span><span><h2>Mis plantillas</h2><div class="meta">${np ? pl(np, 'plantilla lista', 'plantillas listas') + ' para aplicar' : 'Guarda una rutina y aplícala a otro alumno con un toque'}</div></span><span class="chev" aria-hidden="true">›</span></a></li></ul>
+    ${selectorTema()}
+    ${APP ? `<p class="leyenda version">Versión ${esc(APP.version)}</p>` : ''}
   </div>`;
 }
 
@@ -4347,6 +4349,35 @@ document.addEventListener('pointerdown', (e) => {
 });
 if (APP) addEventListener('inq-nube', () => { const r = ruta(); if (!(r.edit && BORRADOR)) alCambiarDatos(); });
 addEventListener('online', () => { if (ruta().v3 === 'nube') { NUBE_INFO = undefined; pintar(); } });
+
+/* ---------- 3.6: modo oscuro a elección y actualizaciones que se aplican solas ---------- */
+const TEMAS = [['auto', 'Automático'], ['claro', 'Claro'], ['oscuro', 'Oscuro']];
+let TEMA = 'auto';
+try { TEMA = localStorage.getItem('inq-tema') || 'auto'; } catch (err) { /* sin almacenamiento */ }
+function aplicarTema() {
+  const raiz = document.documentElement;
+  if (TEMA === 'claro') raiz.dataset.theme = 'light'; else if (TEMA === 'oscuro') raiz.dataset.theme = 'dark'; else delete raiz.dataset.theme;
+  const oscuro = TEMA === 'oscuro' || (TEMA === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => { m.setAttribute('content', oscuro ? '#10151C' : '#1F2937'); m.removeAttribute('media'); });
+}
+aplicarTema();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', aplicarTema);
+const selectorTema = () => `<div class="sec">Apariencia</div><div class="seg tema" role="group" aria-label="Modo de color">${TEMAS.map(([k, t]) => `<button type="button" class="${TEMA === k ? 'on' : ''}" data-act="tema" data-t="${k}" aria-pressed="${TEMA === k}">${t}</button>`).join('')}</div>`;
+ACT.tema = (el) => { TEMA = el.dataset.t; try { localStorage.setItem('inq-tema', TEMA); } catch (err) { /* nada */ } aplicarTema(); pintar(); };
+(() => { const st = document.createElement('style'); st.textContent = '.seg.tema { margin-top: 4px; grid-template-columns: repeat(3, minmax(0, 1fr)); } .seg.tema button { min-height: 44px; } .leyenda.version { text-align: center; margin-top: 26px; }'; document.head.appendChild(st); })();
+// Versión nueva: se aplica sola (recarga) apenas no hay un formulario abierto ni un cronómetro andando.
+function aplicarVersion() {
+  if (!APP || !APP.hayNuevaVersion || !APP.hayNuevaVersion()) return;
+  if (BORRADOR || (CR.empezado && !CR.terminado)) return;
+  try { sessionStorage.setItem('inq-actualizada', '1'); } catch (err) { /* nada */ }
+  location.reload();
+}
+const buscarVersion = () => { if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {}); };
+addEventListener('inq-app', () => setTimeout(aplicarVersion, 300));
+addEventListener('hashchange', () => setTimeout(aplicarVersion, 300));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { buscarVersion(); aplicarVersion(); } });
+setInterval(buscarVersion, 30 * 60 * 1000);
+try { if (sessionStorage.getItem('inq-actualizada')) { sessionStorage.removeItem('inq-actualizada'); setTimeout(() => toast(`App actualizada a la versión ${APP ? APP.version : ''} ✓`), 3400); } } catch (err) { /* nada */ }
 
 iniciar();
 
