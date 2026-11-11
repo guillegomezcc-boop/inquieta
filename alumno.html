@@ -1599,6 +1599,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
   const leer = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } };
   const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sin espacio */ } };
   let R = null; let dia = 0;
+  let ANIM_EXT = {}; // animaciones creadas por Claude a pedido (animaciones.json)
   const claveDia = () => `inq-r-${token}-dia`;
   const claveChk = () => `inq-r-${token}-${HOY}-${dia}`;
 
@@ -1612,7 +1613,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
       if (propio) id = propio[0]; else { const f = EJ.buscar(n); if (f) id = f.id; }
     }
     const o = (id && ov[id]) || {};
-    const base = PRE.get(id) || EJ.propia(id, o) || (o.base ? PRE.get(o.base) : null);
+    const base = PRE.get(id) || EJ.propia(id, o.anim || !ANIM_EXT[id] ? o : { ...o, anim: ANIM_EXT[id].anim }) || (o.base ? PRE.get(o.base) : null);
     return { id, n, img: o.img || '', fig: base, m: o.m || (base && base.m) || [], s: o.s || (base && base.s) || [], g: o.g || (base && base.g) || '', nota: o.nota || '' };
   }
   function info(e) {
@@ -2049,6 +2050,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { app.innerHTML = `<div class="caja"><h2>No encontramos tu rutina</h2><p>${esc(j.mensaje || 'Revisa el link o pídele uno nuevo a tu entrenadora.')}</p></div>`; return; }
       R = j; R.dias = (R.dias || []).filter((d) => (d.ej || []).length);
+      try { const a = await fetch('/animaciones.json', { cache: 'no-store' }); if (a.ok) ANIM_EXT = (await a.json()).anim || {}; } catch (e) { /* sin red: sigue sin ellas */ }
       prepararGuiado();
       enviarCola();
       dia = Math.min(+leer(claveDia(), 0) || 0, Math.max(0, R.dias.length - 1));

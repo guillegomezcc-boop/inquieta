@@ -726,7 +726,7 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
      así el sitio publicado no muestra nombres ni datos de salud.
    - Después corre la misma app de claude.ai (editor.js, dentro de arrancarApp) con esta base local. */
 (() => {
-  const VERSION = "4.1.0";
+  const VERSION = "4.2.0";
   const CLAVE = 'inquieta-entrena-datos';
   const CLAVE_META = 'inquieta-entrena-meta';
   const COLS = ['alumnos', 'rutinas', 'clases', 'base', 'ejercicios', 'plantillas', 'sesiones'];
@@ -3808,7 +3808,20 @@ const PRE = new Map(EJ.lista.map((f) => [f.id, f]));
 const figSola = (f) => ({ id: f.id, n: f.n, g: f.g, m: f.m || [], s: f.s || [], nota: '', img: '', fig: f, propio: false });
 // Animación propia de un ejercicio de Fernanda (creada con IA y aprobada por ella). Al cambiar, se redibuja.
 const PROPIA_VISTA = new Map();
-function figPropia(id, o) {
+// Animaciones creadas por Claude a pedido (animaciones.json, publicado junto a la app): id del ejercicio → animación.
+let ANIM_EXT = {}; try { ANIM_EXT = JSON.parse(localStorage.getItem('inq-anim') || '{}'); } catch (e) { ANIM_EXT = {}; }
+function conAnim(id, o) {
+  if (o && o.anim) return o;
+  const x = ANIM_EXT[id]; if (!x || !x.anim) return o;
+  return { ...o, anim: x.anim };
+}
+fetch('animaciones.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => {
+  if (!j || !j.anim || JSON.stringify(j.anim) === JSON.stringify(ANIM_EXT)) return;
+  ANIM_EXT = j.anim; try { localStorage.setItem('inq-anim', JSON.stringify(ANIM_EXT)); } catch (e) { /* sin espacio */ }
+  BIB = null; if (!BORRADOR && typeof pintar === 'function') pintar();
+}).catch(() => {});
+function figPropia(id, o0) {
+  const o = conAnim(id, o0);
   const f = EJ.propia(id, o); if (!f) return null;
   if (PROPIA_VISTA.get(id) !== f) { PROPIA_VISTA.set(id, f); SVGC.delete(id); SVGC.delete(id + '~a'); }
   return f;
@@ -4071,31 +4084,31 @@ function bloqueIA(B, figIA) {
   if (!NUBE) return '';
   const d = B.d; const ia = B.ia || {};
   const rev = figIA ? FIG.validar(figIA) : null;
-  return `<div class="campo ia"><span>Animación propia (IA)</span>
+  return `<div class="campo ia"><span>Animación propia</span>
     <textarea data-b="d.desc" rows="2" placeholder="Describe el movimiento (opcional): posición inicial, qué se mueve, con qué implemento">${esc(d.desc || '')}</textarea>
     ${figIA ? `<div class="ia-prev"><div class="ia-fig">${FIG.figura(figIA, { animar: true })}</div>
       <p class="ia-rev ${rev.ok ? 'ok' : 'mal'}">${rev.ok ? 'Revisión biomecánica aprobada ✓' : 'No pasó la revisión: ' + esc(rev.fallas.join(', '))}</p>
       ${ia.texto ? `<p class="ia-txt">${esc(ia.texto)}</p>` : ''}</div>
       <input type="text" data-b="ia.cambio" value="${esc(ia.cambio || '')}" placeholder="¿Qué le cambiarías? Ej: baja más la cadera">` : ''}
-    ${ia.pregunta ? `<p class="ia-rev mal">${esc(ia.pregunta)}</p>` : ''}
-    <div class="ia-btns"><button type="button" class="btn-sec" data-act="iaCrear"${ia.cargando ? ' disabled' : ''}>${ia.cargando ? 'Creando la animación…' : figIA ? 'Regenerar' : 'Crear animación con IA'}</button>
-    ${figIA ? '<button type="button" class="btn-ghost" data-act="iaQuitar">Quitar</button>' : ''}</div>
-    <small>${figIA ? 'Mira que el monito haga el ejercicio correcto antes de guardar.' : 'Crea un monito exclusivo para este ejercicio. Lo ves antes de guardar.'}</small></div>`;
+    ${ia.pregunta ? `<p class="ia-rev mal">${esc(ia.pregunta)}</p>` : ''}${ia.pedido ? '<p class="ia-rev ok">Pedido enviado ✓ Guarda el ejercicio: Claude crea su monito y aparece solo, normalmente dentro de un día.</p>' : ''}
+    <div class="ia-btns"><button type="button" class="btn-sec" data-act="iaCrear"${ia.cargando ? ' disabled' : ''}>${ia.cargando ? 'Enviando…' : figIA ? (d.anim ? 'Regenerar' : 'Pedir el cambio') : 'Pedir animación a Claude'}</button>
+    ${figIA && d.anim ? '<button type="button" class="btn-ghost" data-act="iaQuitar">Quitar</button>' : ''}</div>
+    <small>${figIA ? 'Mira que el monito haga el ejercicio correcto antes de guardar.' : 'Claude crea un monito exclusivo para este ejercicio y aparece solo cuando está listo.'}</small></div>`;
 }
-async function pedirAnim(cuerpo) {
+async function pedirAnim(cuerpo, ruta = '/animar') {
   let nb = {}; try { nb = JSON.parse(localStorage.getItem('inquieta-nube') || '{}'); } catch (e) { nb = {}; }
   let api = ''; try { api = localStorage.getItem('inq-api') || ''; } catch (e) { api = ''; }
   if (!api) api = /netlify\.app$|^localhost$|^127\.0\.0\.1$/.test(location.hostname) ? location.origin + '/api' : 'https://inquieta.netlify.app/api';
-  const r = await fetch(api + '/animar', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (nb.token || '') }, body: JSON.stringify(cuerpo) });
+  const r = await fetch(api + ruta, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (nb.token || '') }, body: JSON.stringify(cuerpo) });
   let j = {}; try { j = await r.json(); } catch (e) { j = {}; }
-  if (!r.ok) throw new Error(j.mensaje || 'No se pudo crear la animación. Revisa tu conexión.');
+  if (!r.ok) { const e = new Error(j.mensaje || 'No se pudo enviar. Revisa tu conexión.'); e.status = r.status; throw e; }
   return j;
 }
 ACT.iaCrear = async () => {
   const B = BORRADOR; if (!B || (B.ia && B.ia.cargando)) return;
   const d = B.d; const n = limpio(d.n);
   if (!n) { toast('Escribe primero el nombre del ejercicio'); enfocar('[data-b="d.n"]'); return; }
-  const ia = B.ia = { ...(B.ia || {}), cargando: true, pregunta: '' }; repintarEditor();
+  const ia = B.ia = { ...(B.ia || {}), cargando: true, pregunta: '', pedido: false }; repintarEditor();
   try {
     let cuerpo = { nombre: n, descripcion: limpio(d.desc || ''), grupo: d.g ? EJ.G[d.g] : '' };
     if (d.anim && ia.cambio) cuerpo = { ...cuerpo, previa: d.anim, cambio: limpio(ia.cambio) };
@@ -4119,14 +4132,20 @@ ACT.iaCrear = async () => {
       if (!d.s.length) d.s = (j.s || []).filter((k) => EJ.MUS[k] && !d.m.includes(k));
       if (!limpio(d.nota) && j.ejecucion) d.nota = j.ejecucion;
     }
-  } catch (err) { if (BORRADOR === B) ia.pregunta = err.message; }
+  } catch (err) {
+    if (BORRADOR !== B) return;
+    if (err.status === 503) { // sin IA de pago: el pedido queda para Claude (tarea programada), sin costo
+      try { await pedirAnim({ id: B.id, nombre: n, descripcion: limpio(d.desc || ''), grupo: d.g ? EJ.G[d.g] : '', cambio: limpio(ia.cambio || '') }, '/pedidos'); ia.pedido = true; ia.cambio = ''; B.sucio = true; }
+      catch (e2) { ia.pregunta = e2.message; }
+    } else ia.pregunta = err.message;
+  }
   if (BORRADOR === B) { ia.cargando = false; repintarEditor(); }
 };
 ACT.iaQuitar = () => { const B = BORRADOR; if (!B) return; B.d.anim = null; B.ia = {}; B.sucio = true; repintarEditor(); };
 function vistaEdEj(r) {
   if (!BORRADOR || BORRADOR.ruta !== r.clave) { BORRADOR = borradorEj(r); if (!BORRADOR) return noExiste('#ejercicios'); }
   const B = BORRADOR; const d = B.d;
-  const figIA = d.anim ? figPropia(B.id, { n: d.n, g: d.g, m: d.m, s: d.s, anim: d.anim }) : null;
+  const figIA = figPropia(B.id, { n: d.n, g: d.g, m: d.m, s: d.s, anim: d.anim });
   const fig = PRE.get(B.id) || figIA || (d.base ? PRE.get(d.base) : null) || exacto(d.n);
   const vista = { id: B.id, n: d.n, g: d.g || 'core', m: d.m.length ? d.m : MUS_DE_GRUPO[d.g] || [], s: d.s, img: d.img, fig };
   return `<header class="barra"><div class="wrap"><button type="button" class="volver" data-act="cancelar" aria-label="Cancelar">${ICON.back}</button><h1>${B.nuevo ? 'Nuevo ejercicio' : 'Editar ejercicio'}</h1></div></header>

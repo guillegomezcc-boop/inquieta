@@ -230,6 +230,23 @@ async function animar(req, s) {
   return json(req, { ok: true, tipo: txt(o.tipo, 20), g: txt(o.g, 20), m: lista(o.m), s: lista(o.s), equipo: txt(o.equipo, 60), inicio: txt(o.inicio, 200), ejecucion: txt(o.ejecucion, 300), errores: txt(o.errores, 200), anim: o.anim });
 }
 
+/* ---------- pedidos de animación (sin costo: los resuelve Claude en una tarea programada) ----------
+   POST /api/pedidos (solo Fernanda): pide el monito de un ejercicio nuevo (nombre, descripción, grupo). Sin datos de alumnos.
+   GET /api/pedidos (público, solo lectura): la lista de pedidos, para que la tarea de Claude los lea, cree cada animación,
+   la valide y la publique en animaciones.json. La app la muestra sola cuando aparece. */
+async function pedidos(req, s, c) {
+  const P = (await s.get('pedidos', { type: 'json' })) || {};
+  if (req.method === 'GET') return json(req, { pedidos: Object.entries(P).map(([id, x]) => ({ id, ...x })).sort((a, b) => String(a.t).localeCompare(String(b.t))) });
+  if (!autorizado(req, c)) return error(req, 401, 'Tu sesión se cerró. Escribe tu PIN otra vez.');
+  let b; try { b = await req.json(); } catch (e) { return error(req, 400, 'Datos inválidos.'); }
+  const id = txt(b.id, 40); const n = txt(b.nombre, 80).trim();
+  if (!/^[\w-]{3,40}$/.test(id) || !n) return error(req, 400, 'Falta el nombre del ejercicio.');
+  P[id] = { n, d: txt(b.descripcion, 600), g: txt(b.grupo, 30), cambio: txt(b.cambio, 300), t: new Date().toISOString() };
+  const ids = Object.keys(P).sort((x, y) => String(P[x].t).localeCompare(String(P[y].t))); while (ids.length > 60) delete P[ids.shift()];
+  await s.setJSON('pedidos', P);
+  return json(req, { ok: true });
+}
+
 export default async (req, context) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(req) });
   const p = new URL(req.url).pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean);
@@ -242,6 +259,7 @@ export default async (req, context) => {
     const s = datosStore();
     if (p[0] === 'estado' && req.method === 'GET') { const { c } = await leerConfig(s); return json(req, { pin: !!c.pin }); }
     if (p[0] === 'entrar' && req.method === 'POST') return await entrar(req, context, s);
+    if (p[0] === 'pedidos' && (req.method === 'GET' || req.method === 'POST')) { const { c } = await leerConfig(s); return await pedidos(req, s, c); }
     if (p[0] === 'animar' && req.method === 'POST') { const { c } = await leerConfig(s); if (!autorizado(req, c)) return error(req, 401, 'Tu sesión se cerró. Escribe tu PIN otra vez.'); return await animar(req, s); }
     if (p[0] === 'datos' && (req.method === 'POST' || req.method === 'GET')) {
       const { c } = await leerConfig(s);
