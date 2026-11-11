@@ -2,18 +2,19 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<script>/* rutas relativas: en Netlify (/r/<link>) se resuelven desde la raíz; en GitHub Pages, desde la carpeta */ if (/^\/r\//.test(location.pathname)) document.write('<base href="/">');</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#1F2937">
 <meta name="description" content="Tu rutina de entrenamiento personal.">
 <title>Tu rutina · Fernanda Rojas</title>
-<link rel="icon" href="/img/favicon.png" type="image/png">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="icon" href="img/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <style>
-@font-face { font-family: "Montserrat"; font-weight: 600; font-display: swap; src: url("/fonts/montserrat-latin-600-normal.woff2") format("woff2"); }
-@font-face { font-family: "Montserrat"; font-weight: 700; font-display: swap; src: url("/fonts/montserrat-latin-700-normal.woff2") format("woff2"); }
-@font-face { font-family: "Montserrat"; font-weight: 800; font-display: swap; src: url("/fonts/montserrat-latin-800-normal.woff2") format("woff2"); }
+@font-face { font-family: "Montserrat"; font-weight: 600; font-display: swap; src: url("fonts/montserrat-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Montserrat"; font-weight: 700; font-display: swap; src: url("fonts/montserrat-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Montserrat"; font-weight: 800; font-display: swap; src: url("fonts/montserrat-latin-800-normal.woff2") format("woff2"); }
 :root {
   --bg: #F3F5F7; --surface: #FFFFFF; --text: #0F1217; --muted: #5A6472; --line: #DCE1E7; --head: #1F2937; --head-text: #F9FAFB;
   --brand: #00CFCB; --brand-ink: #04211F; --brand-text: #008E8A; --brand-soft: #DDF7F6; --ok: #0E9F6E;
@@ -170,7 +171,7 @@ textarea.obs { width: 100%; min-height: 84px; margin-top: 14px; padding: 12px; b
 </style>
 </head>
 <body>
-<header class="cab"><div class="wrap"><img class="logo" src="/img/logo-claro.png" alt="Inquieta" width="480" height="121"><div class="firma">Fernanda Rojas<br>Coach</div></div></header>
+<header class="cab"><div class="wrap"><img class="logo" src="img/logo-claro.png" alt="Inquieta" width="480" height="121"><div class="firma">Fernanda Rojas<br>Coach</div></div></header>
 <main id="app" class="wrap"><p class="cargando">Cargando tu rutina…</p></main>
 <script>
 /* Inquieta · dibujos propios de los ejercicios (SVG) y mapa de músculos.
@@ -1584,7 +1585,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
 (() => {
   const local = /netlify\.app$|^localhost$|^127\.0\.0\.1$/.test(location.hostname);
   const API = local ? '/api' : 'https://inquieta.netlify.app/api';
-  const BASE = local ? '/' : 'https://inquieta.netlify.app/';
+  const BASE = /^\/r\//.test(location.pathname) ? '/' : ''; // Netlify (/r/<link>) o GitHub Pages (…/inquieta/alumno.html#t=…)
   const token = (location.pathname.match(/\/r\/([\w-]{16,64})/) || location.hash.match(/t=([\w-]{16,64})/) || [])[1];
   const app = document.getElementById('app');
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2050,7 +2051,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { app.innerHTML = `<div class="caja"><h2>No encontramos tu rutina</h2><p>${esc(j.mensaje || 'Revisa el link o pídele uno nuevo a tu entrenadora.')}</p></div>`; return; }
       R = j; R.dias = (R.dias || []).filter((d) => (d.ej || []).length);
-      try { const a = await fetch('/animaciones.json', { cache: 'no-store' }); if (a.ok) ANIM_EXT = (await a.json()).anim || {}; } catch (e) { /* sin red: sigue sin ellas */ }
+      try { const a = await fetch(BASE + 'animaciones.json', { cache: 'no-store' }); if (a.ok) ANIM_EXT = (await a.json()).anim || {}; } catch (e) { /* sin red: sigue sin ellas */ }
       prepararGuiado();
       enviarCola();
       dia = Math.min(+leer(claveDia(), 0) || 0, Math.max(0, R.dias.length - 1));

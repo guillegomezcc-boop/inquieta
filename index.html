@@ -726,7 +726,7 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
      así el sitio publicado no muestra nombres ni datos de salud.
    - Después corre la misma app de claude.ai (editor.js, dentro de arrancarApp) con esta base local. */
 (() => {
-  const VERSION = "4.2.0";
+  const VERSION = "4.3.0";
   const CLAVE = 'inquieta-entrena-datos';
   const CLAVE_META = 'inquieta-entrena-meta';
   const COLS = ['alumnos', 'rutinas', 'clases', 'base', 'ejercicios', 'plantillas', 'sesiones'];
@@ -993,7 +993,7 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
     sincronizar,
     guardarImagen,
     urlImagen: (id) => URLS.get(id) || `${API}/img/${id}`,
-    linkAlumno: (token) => `${SITIO}/r/${token}`,
+    linkAlumno: (token) => `https://guillegomezcc-boop.github.io/inquieta/alumno.html#t=${token}`,
   });
 
   /* ---------- versión nueva ---------- */
@@ -4136,8 +4136,8 @@ ACT.iaCrear = async () => {
     if (BORRADOR !== B) return;
     if (err.status === 503) { // sin IA de pago: el pedido queda para Claude (tarea programada), sin costo
       try { await pedirAnim({ id: B.id, nombre: n, descripcion: limpio(d.desc || ''), grupo: d.g ? EJ.G[d.g] : '', cambio: limpio(ia.cambio || '') }, '/pedidos'); ia.pedido = true; ia.cambio = ''; B.sucio = true; }
-      catch (e2) { ia.pregunta = e2.message; }
-    } else ia.pregunta = err.message;
+      catch (e2) { ia.pregunta = e2.status === 404 ? 'Los pedidos de monitos se activan cuando Netlify vuelva a publicar (está en pausa por el límite del plan gratis). Mientras tanto, pásale el nombre del ejercicio a Guille.' : e2.message; }
+    } else ia.pregunta = err.status === 404 ? 'Los pedidos de monitos se activan cuando Netlify vuelva a publicar (está en pausa por el límite del plan gratis). Mientras tanto, pásale el nombre del ejercicio a Guille.' : err.message;
   }
   if (BORRADOR === B) { ia.cargando = false; repintarEditor(); }
 };
