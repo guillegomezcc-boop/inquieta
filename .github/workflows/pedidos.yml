@@ -1,0 +1,26 @@
+# Trae los pedidos de animación de la app (nombres de ejercicios, sin datos de alumnos) a pedidos.json,
+# para que la tarea programada de Claude los lea desde el repositorio, cree cada monito y lo publique en animaciones.json.
+name: Pedidos de animación
+on:
+  schedule:
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  traer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Leer pedidos
+        run: |
+          curl -fsS --max-time 30 https://inquieta.netlify.app/api/pedidos -o nuevo.json
+          node -e "const j=JSON.parse(require('fs').readFileSync('nuevo.json','utf8')); if(!Array.isArray(j.pedidos)) process.exit(1); require('fs').writeFileSync('pedidos.json', JSON.stringify(j, null, 1)+'\n')"
+          rm nuevo.json
+      - name: Guardar si cambió
+        run: |
+          git add pedidos.json
+          if ! git diff --cached --quiet; then
+            git -c user.name="inquieta-bot" -c user.email="inquieta-bot@users.noreply.github.com" commit -m "Pedidos de animación actualizados"
+            git push
+          fi
