@@ -726,7 +726,7 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
      así el sitio publicado no muestra nombres ni datos de salud.
    - Después corre la misma app de claude.ai (editor.js, dentro de arrancarApp) con esta base local. */
 (() => {
-  const VERSION = "3.10.0";
+  const VERSION = "4.0.0";
   const CLAVE = 'inquieta-entrena-datos';
   const CLAVE_META = 'inquieta-entrena-meta';
   const COLS = ['alumnos', 'rutinas', 'clases', 'base', 'ejercicios', 'plantillas', 'sesiones'];
@@ -1206,18 +1206,29 @@ const FIG = (() => {
     const g = Array.isArray(Q.pie) ? Q.pie[i] : Q.pie;
     return g == null ? null : [Math.cos(rad(g)), Math.sin(rad(g))];
   }
+  // Pista de dónde va la articulación (la deja la mezcla entre posturas): así codos y rodillas nunca saltan de lado.
+  function pista(Q, k, i, raiz) {
+    const h = Q._h && Q._h[k] && Q._h[k][i]; if (!h) return null;
+    const v = [h[0] - raiz[0], h[1] - raiz[1]];
+    return Math.hypot(v[0], v[1]) > 0.05 ? v : null;
+  }
   function modeloL(Q) {
     const b = { ...base(Q), v: 'l' };
     const piernas = [0, 1].map((i) => {
       const p = res(Q.p && Q.p[i], b) || [b.c[0] + (i ? -1.2 : 1.2), PISO - 2.3];
-      const [j, e] = ik(b.c, p, L.muslo, L.pierna, pref(Q.ko && Q.ko[i], b, b.fw));
+      let [j, e] = ik(b.c, p, L.muslo, L.pierna, pista(Q, 'p', i, b.c) || pref(Q.ko && Q.ko[i], b, b.fw));
+      // Sin indicación, la rodilla se dobla como una rodilla: la pierna va hacia atrás del muslo, nunca al revés.
+      if (!(Q._h && Q._h.p && Q._h.p[i]) && !(Q.ko && Q.ko[i])) {
+        const d1 = unit([j[0] - b.c[0], j[1] - b.c[1]]); const d2 = unit([e[0] - j[0], e[1] - j[1]]);
+        if ((Q.sup ? -1 : 1) * pt(d2, [-d1[1], d1[0]]) < -0.02) [j, e] = ik(b.c, p, L.muslo, L.pierna, [b.c[0] + (p[0] - b.c[0]) / 2 - j[0], b.c[1] + (p[1] - b.c[1]) / 2 - j[1]]);
+      }
       let pd = piesDe(Q, b, i);
       if (!pd) { const d = unit([e[0] - j[0], e[1] - j[1]]); const n1 = [-d[1], d[0]]; const want = Q.pf || b.fw; pd = pt(n1, want) >= 0 ? n1 : por(n1, -1); }
       return { a: b.c, j, e, x: suma(e, por(pd, L.pie)) };
     });
     const brazos = [0, 1].map((i) => {
       const m = res(Q.m && Q.m[i], b) || [b.h[0] + (i ? -0.6 : 0.6), b.h[1] + L.brazo + L.antebrazo - 1.2];
-      const [j, e] = ik(b.h, m, L.brazo, L.antebrazo, pref(Q.co && Q.co[i], b, por(b.fw, -1)));
+      const [j, e] = ik(b.h, m, L.brazo, L.antebrazo, pista(Q, 'b', i, b.h) || pref(Q.co && Q.co[i], b, por(b.fw, -1)));
       return { a: b.h, j, e };
     });
     return { ...b, piernas, brazos };
@@ -1230,31 +1241,87 @@ const FIG = (() => {
     const piernas = [0, 1].map((i) => {
       const s = i ? -1 : 1;
       const p = res(Q.p && Q.p[i], b) || suma(cad[i], [s * 1.4, PISO - 2.3 - cad[i][1]]);
-      const [j, e] = ik(cad[i], p, L.muslo * (Q.lm || 1), L.pierna, Q.ko && Q.ko[i] ? Q.ko[i] : por(b.lat, s * (Q.kf ?? 1)));
+      const [j, e] = ik(cad[i], p, L.muslo * (Q.lm || 1), L.pierna, pista(Q, 'p', i, cad[i]) || (Q.ko && Q.ko[i] ? Q.ko[i] : por(b.lat, s * (Q.kf ?? 1))));
       const pd = piesDe(Q, b, i) || unit(suma(por(b.lat, s), por(b.dn, 0.2)));
       return { a: cad[i], j, e, x: suma(e, por(pd, 2.6)) };
     });
     const brazos = [0, 1].map((i) => {
       const s = i ? -1 : 1;
       const m = res(Q.m && Q.m[i], b) || suma(hom[i], suma(por(b.lat, s * 2.2), por(b.dn, L.brazo + L.antebrazo - 1.4)));
-      const [j, e] = ik(hom[i], m, L.brazo, L.antebrazo, Q.co && Q.co[i] ? Q.co[i] : por(b.lat, s * (Q.cf ?? 1)));
+      const lb = Array.isArray(Q.lb) ? Q.lb[i] : Q.lb || 1;
+      const [j, e] = ik(hom[i], m, L.brazo * lb, L.antebrazo * lb, pista(Q, 'b', i, hom[i]) || (Q.co && Q.co[i] ? Q.co[i] : por(b.lat, s * (Q.cf ?? 1))));
       return { a: hom[i], j, e };
     });
     return { ...b, cad, hom, piernas, brazos };
   }
   const modelo = (Q) => (Q.v === 'f' ? modeloF(Q) : modeloL(Q));
 
-  // Postura «resuelta»: todo en números para poder interpolar entre dos posturas.
+  // Postura «resuelta»: todo en números para poder interpolar entre dos posturas. Guarda cómo venían definidas manos y
+  // pies (_s) y el esqueleto ya calculado (_k).
   function resolver(Q) {
     const m = modelo(Q);
-    return { ...Q, c: m.c, t: Q.t ?? 90, cab: Q.cab || 0, cu: Q.cu || 0, p: m.piernas.map((x) => x.e), m: m.brazos.map((x) => x.e) };
+    return { ...Q, c: m.c, t: Q.t ?? 90, cab: Q.cab || 0, cu: Q.cu || 0, p: m.piernas.map((x) => x.e), m: m.brazos.map((x) => x.e), _s: { m: Q.m || [], p: Q.p || [] }, _k: m };
   }
-  function mezcla(A, B, u) {
-    const Q = { ...(u < 0.5 ? A : B) };
+  /* Mezcla entre dos posturas (u de 0 a 1). Cada brazo y cada pierna se mueve como se mueve de verdad:
+     - «arco»: cuando gira una sola articulación (curl, elevación lateral, extensión de piernas, patadas) se interpolan los
+       ángulos de la articulación: la mano o el pie dibujan un arco y el codo o la rodilla quedan en su lugar;
+     - «recta»: cuando la carga va guiada o el apoyo no se mueve (press, jalones, pies en el piso, manos en la barra)
+       la mano o el pie siguen una recta y el resto de la cadena se acomoda;
+     - si la mano va apoyada en el cuerpo (barra en los hombros, manos en la cadera) sigue pegada al cuerpo.
+     En todos los casos el codo y la rodilla siguen la interpolación de ángulos: nunca saltan de un lado al otro. */
+  const ang = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]);
+  const giro = (a) => { let x = a % (2 * Math.PI); if (x > Math.PI) x -= 2 * Math.PI; if (x <= -Math.PI) x += 2 * Math.PI; return x; };
+  const UMBRAL = rad(32);
+  function tramoDe(A, B, lista, i) {
+    const xa = A._k[lista][i]; const xb = B._k[lista][i];
+    const fa = Math.atan2(A._k.u[1], A._k.u[0]); const fb = Math.atan2(B._k.u[1], B._k.u[0]);
+    const r1a = giro(ang(xa.a, xa.j) - fa); const r1b = giro(ang(xb.a, xb.j) - fb);
+    const r2a = giro(ang(xa.j, xa.e) - ang(xa.a, xa.j)); const r2b = giro(ang(xb.j, xb.e) - ang(xb.a, xb.j));
+    let d1 = giro(r1b - r1a); const d2 = r2b - r2a; // el codo y la rodilla nunca pasan por «plegado del todo»
+    // Barrido de casi media vuelta (brazos de abajo a arriba): va por adelante (de lado) o por afuera (de frente), nunca por dentro del cuerpo.
+    if (Math.abs(d1) > rad(150)) {
+      const medio = fa + r1a + d1 / 2; const v = [Math.cos(medio), Math.sin(medio)];
+      const lado = A._k.v === 'f' ? por(A._k.lat, i ? -1 : 1) : A._k.fw;
+      if (pt(v, lado) < 0) d1 -= Math.sign(d1) * 2 * Math.PI;
+    }
+    return { r1a, r2a, d1, d2, l1a: largo0(xa.a, xa.j), l1b: largo0(xb.a, xb.j), l2a: largo0(xa.j, xa.e), l2b: largo0(xb.j, xb.e), mueve: largo0(xa.e, xb.e), flex: Math.abs(Math.abs(r2b) - Math.abs(r2a)), plano: Math.abs(xa.e[1] - xb.e[1]) < 1.2 && Math.abs(xa.a[1] - xb.a[1]) > 1.5 };
+  }
+  const largo0 = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+  function modoDe(T, sa, sb, forzado) {
+    const rel = (s) => s && typeof s[0] === 'string';
+    if (rel(sa) && rel(sb) && sa[0] === sb[0]) return 'cuerpo';
+    if (!sa && !sb) return 'libre';
+    if (T.mueve < 0.6 || T.plano) return 'recta'; // apoyo fijo, o mano/pie que se desliza a la misma altura (piso, rueda, riel)
+    if (forzado) return forzado === 'a' ? 'arco' : 'recta';
+    return Math.min(Math.abs(T.d1), T.flex) < UMBRAL ? 'arco' : 'recta';
+  }
+  function mezcla(A, B, u, ej) {
+    const Q = { ...(u < 0.5 ? A : B) }; delete Q._s; delete Q._k; delete Q._h;
     Q.c = lpP(A.c, B.c, u); Q.t = lp(A.t, B.t, u); if (A.tl || B.tl) Q.tl = lp(A.tl || 1, B.tl || 1, u); if (A.lm || B.lm) Q.lm = lp(A.lm || 1, B.lm || 1, u); Q.cab = lp(A.cab, B.cab, u); Q.cu = lp(A.cu, B.cu, u);
-    Q.p = [0, 1].map((i) => lpP(A.p[i], B.p[i], u)); Q.m = [0, 1].map((i) => lpP(A.m[i], B.m[i], u));
+    if (A.lb || B.lb) { const de = (X, i) => (Array.isArray(X.lb) ? X.lb[i] : X.lb || 1); Q.lb = [0, 1].map((i) => lp(de(A, i), de(B, i), u)); }
     if (A.pie != null && B.pie != null) Q.pie = [0, 1].map((i) => lp(Array.isArray(A.pie) ? A.pie[i] : A.pie, Array.isArray(B.pie) ? B.pie[i] : B.pie, u));
     Q.ea = (A.ea || []).map((g, i) => lp(g || 0, (B.ea || [])[i] || 0, u));
+    if (!A._k || !B._k) { Q.p = [0, 1].map((i) => lpP(A.p[i], B.p[i], u)); Q.m = [0, 1].map((i) => lpP(A.m[i], B.m[i], u)); return Q; }
+    const M0 = modelo({ ...Q, m: null, p: null, ko: null, co: null });
+    const f0 = Math.atan2(M0.u[1], M0.u[0]); const tr = (ej && ej.tr) || {};
+    Q._h = {};
+    for (const [lista, k, kk] of [['piernas', 'p', 'p'], ['brazos', 'm', 'b']]) {
+      Q._h[kk] = [];
+      Q[k] = [0, 1].map((i) => {
+        const T = tramoDe(A, B, lista, i); const raiz = M0[lista][i].a;
+        const a1 = f0 + T.r1a + T.d1 * u; const a2 = a1 + T.r2a + T.d2 * u;
+        const j = [raiz[0] + lp(T.l1a, T.l1b, u) * Math.cos(a1), raiz[1] + lp(T.l1a, T.l1b, u) * Math.sin(a1)];
+        const e = [j[0] + lp(T.l2a, T.l2b, u) * Math.cos(a2), j[1] + lp(T.l2a, T.l2b, u) * Math.sin(a2)];
+        Q._h[kk][i] = j;
+        const sa = A._s[k][i]; const sb = B._s[k][i];
+        const modo = modoDe(T, sa, sb, Array.isArray(tr[kk]) ? tr[kk][i] : tr[kk]);
+        if (modo === 'cuerpo') return [sa[0], lp(sa[1], sb[1], u), lp(sa[2], sb[2], u)];
+        if (modo === 'libre') return null;
+        if (modo === 'arco') return e;
+        const xa = A._k[lista][i].e; const xb = B._k[lista][i].e;
+        return lpP(xa, xb, u);
+      });
+    }
     return Q;
   }
 
@@ -1581,12 +1648,12 @@ const FIG = (() => {
   const suave = (u) => 0.5 - Math.cos(Math.PI * u) / 2;
   function altura(Q) { const ys = [Q.c[1], ...Q.m.map((x) => x[1]), ...Q.p.map((x) => x[1])]; return ys.reduce((a, b) => a + b, 0) / ys.length; }
   function cuadros(ej) {
-    const K = ej._pos; const fr = []; const ts = []; let t = 0;
+    const K = ej._pos; const fr = []; const ts = []; let t = 0; let fases = null;
     const tipo = ej.g === 'estiramientos' ? 'est' : ej.cardio ? 'car' : ej.g === 'movilidad' ? 'mov' : 'fza';
     const pausa = (Q, d) => { if (!(fr.length && fr[fr.length - 1] === Q)) { fr.push(Q); ts.push(t); } if (d > 0) { t += d; fr.push(Q); ts.push(t); } };
     const tramo = (A, B, d) => {
-      const n = Math.max(3, Math.min(7, Math.round(d / 0.2)));
-      for (let k = 1; k <= n; k++) { t += d / n; const Q = k === n ? B : mezcla(A, B, suave(k / n)); fr.push(Q); ts.push(t); }
+      const n = Math.max(4, Math.min(8, Math.round(d / 0.19)));
+      for (let k = 1; k <= n; k++) { t += d / n; const Q = k === n ? B : mezcla(A, B, suave(k / n), ej); fr.push(Q); ts.push(t); }
     };
     if (K.length === 2 && !ej.ciclo) {
       const [A, B] = K;
@@ -1601,6 +1668,7 @@ const FIG = (() => {
         pA = baja === true ? 0.45 : 0.35; pB = baja === true ? 0.3 : 0.45;
       }
       if (ej.dur) { const k = ej.dur / (dIda + dVta + pA + pB); dIda *= k; dVta *= k; pA *= k; pB *= k; }
+      fases = { ida: dIda, vuelta: dVta, tipo, baja: tipo === 'fza' ? (dIda > dVta ? 'ida' : dVta > dIda ? 'vuelta' : null) : null };
       pausa(A, pA); tramo(A, B, dIda); pausa(B, pB); tramo(B, A, dVta);
     } else {
       const seg = ej.dur ? ej.dur / (ej.ciclo ? K.length : 2 * (K.length - 1) + 0.6) : tipo === 'car' ? 0.55 : 1.1;
@@ -1613,7 +1681,7 @@ const FIG = (() => {
       }
     }
     // la última postura es la primera: el ciclo vuelve a empezar sin salto
-    return { fr, kt: ts.map((x) => +(x / t).toFixed(4)), dur: t };
+    return { fr, kt: ts.map((x) => +(x / t).toFixed(4)), dur: t, ts, fases };
   }
   const atrib = (e) => (e.d != null ? 'd' : e.c ? 'c' : 'tr');
   function figura(ej, op = {}) {
@@ -1623,7 +1691,7 @@ const FIG = (() => {
     const anim = op.animar && ej._pos.length > 1;
     let fr; let C = null;
     if (anim) { C = cuadros(ej); fr = C.fr.map((Q) => ({ Q, m: modelo(Q) })); }
-    else { const i = ej.ico ?? ej._pos.length - 1; const Q = ej._pos[Math.min(i, ej._pos.length - 1)]; fr = [{ Q, m: modelo(Q) }]; }
+    else { const i = op.pose ?? ej.ico ?? ej._pos.length - 1; const Q = ej._pos[Math.min(i, ej._pos.length - 1)]; fr = [{ Q, m: modelo(Q) }]; }
     const listas = fr.map(({ Q, m }) => elementos(ej, m, Q));
     const dur = ((C && C.dur) || 2.6).toFixed(2);
     const kt = () => C.kt.join(';');
@@ -1710,7 +1778,86 @@ const FIG = (() => {
       + '<text x="50" y="195" class="mt">Frente</text><text x="150" y="195" class="mt">Espalda</text></svg>';
   }
   void espejo;
-  return { figura, mapa, modelo, PISO, resolver, mezcla };
+
+  /* ---------- control de calidad ----------
+     Revisa la animación completa de un ejercicio, cuadro por cuadro, antes de mostrarla como «demostración validada»:
+     huesos de largo constante, rodillas que no se doblan al revés, cadera y hombros dentro de su rango, nada bajo el
+     piso, manos y pies que llegan a donde deben, bucle sin salto y sin tirones. Devuelve { ok, fallas, avisos }. */
+  const grados = (r) => (r * 180) / Math.PI;
+  function validar(ej) {
+    const fallas = new Set(); const avisos = new Set(); let vmaxG = 0;
+    try {
+      preparar(ej);
+      const C = ej._pos.length > 1 ? cuadros(ej) : { fr: [ej._pos[0]], ts: [0], dur: 0 };
+      const M = C.fr.map((Q) => modelo(Q));
+      const lado = M[0].v !== 'f';
+      const puntos = (m) => [m.c, m.h, m.k, ...m.piernas.flatMap((x) => [x.j, x.e]), ...m.brazos.flatMap((x) => [x.j, x.e])];
+      // posturas clave: manos y pies llegan a donde se definieron (si no, el implemento o el apoyo quedan «en el aire»)
+      (ej.f || []).forEach((Q0, n) => {
+        const m = ej._pos[n]._k;
+        for (const [lista, k, nom] of [['piernas', 'p', 'pie'], ['brazos', 'm', 'mano']]) [0, 1].forEach((i) => {
+          const s0 = Q0[k] && Q0[k][i]; if (!s0 || typeof s0[0] === 'string') return;
+          const d = largo0(s0, m[lista][i].e);
+          if (d > 2.2 && s0[1] >= 79 && ej.piso !== false) fallas.add(`la ${nom} no llega al piso en la postura ${n + 1}`); else if (d > 1.2) avisos.add(`${nom} algo lejos de su apoyo en la postura ${n + 1}`);
+        });
+      });
+      M.forEach((m, n) => {
+        const P0 = puntos(m);
+        if (P0.some((p) => !Number.isFinite(p[0]) || !Number.isFinite(p[1]))) { fallas.add('cálculo inválido'); return; }
+        const kb = Array.isArray(C.fr[n].lb) ? C.fr[n].lb : [C.fr[n].lb || 1, C.fr[n].lb || 1];
+        m.piernas.forEach((x) => { if (Math.abs(largo0(x.j, x.e) - L.pierna) > 0.15 || (lado && Math.abs(largo0(x.a, x.j) - L.muslo) > 0.15)) fallas.add('una pierna cambia de largo'); });
+        m.brazos.forEach((x, i) => { if (Math.abs(largo0(x.a, x.j) - L.brazo * (lado ? 1 : kb[i])) > 0.15 || Math.abs(largo0(x.j, x.e) - L.antebrazo * (lado ? 1 : kb[i])) > 0.15) fallas.add('un brazo cambia de largo'); });
+        if (ej.piso !== false) {
+          const bajo = Math.max(...P0.map((p) => p[1])) - PISO; const punta = Math.max(...m.piernas.map((x) => x.x[1])) - PISO;
+          if (bajo > 1.6 || punta > 4.4) fallas.add('una parte del cuerpo atraviesa el piso'); else if (bajo > 0.9 || punta > 3.2) avisos.add('roza el piso');
+        }
+        if (Math.abs(C.fr[n].cab || 0) > 50) fallas.add('cuello forzado');
+        if (lado) {
+          const sgn = C.fr[n].sup ? -1 : 1;
+          m.piernas.forEach((x) => {
+            const d1 = dir(x.a, x.j); const d2 = dir(x.j, x.e);
+            if (sgn * pt(d2, perp(d1)) < -0.16) fallas.add('una rodilla se dobla al revés');
+            const flex = grados(giro(Math.atan2(d1[1], d1[0]) - Math.atan2(-m.u[1], -m.u[0]))) * -sgn;
+            if (flex > 175 || flex < -58) fallas.add('cadera fuera de su rango'); else if (flex > 166 || flex < -45) avisos.add('cadera cerca de su límite');
+          });
+          m.brazos.forEach((x) => {
+            const d1 = dir(x.a, x.j); const d2 = dir(x.j, x.e);
+            if (sgn * pt(d2, perp(d1)) > 0.3) avisos.add('codo girado (rotación de hombro)');
+          });
+        }
+      });
+      // bucle y fluidez
+      if (M.length > 1) {
+        const a = puntos(M[0]); const z = puntos(M[M.length - 1]);
+        if (Math.max(...a.map((p, i) => largo0(p, z[i]))) > 0.3) fallas.add('el bucle no cierra: salta al volver a empezar');
+        const lim = ej.cardio ? 260 : ej.g === 'estiramientos' || ej.g === 'movilidad' ? 90 : 130;
+        let vmax = 0;
+        for (let n = 1; n < M.length; n++) {
+          const dt = C.ts[n] - C.ts[n - 1]; if (dt <= 0) continue;
+          const a1 = puntos(M[n - 1]); const b1 = puntos(M[n]);
+          const d = Math.max(...a1.map((p, i) => largo0(p, b1[i])));
+          vmax = Math.max(vmax, d / dt); vmaxG = vmax;
+          if (lado) for (const lista of ['piernas', 'brazos']) [0, 1].forEach((i) => {
+            const f = (x) => { const d1 = dir(x.a, x.j); return pt(dir(x.j, x.e), perp(d1)); };
+            const s0 = f(M[n - 1][lista][i]); const s1 = f(M[n][lista][i]);
+            if (s0 * s1 < 0 && Math.abs(s0) > 0.42 && Math.abs(s1) > 0.42) { if (lista === 'piernas') fallas.add('una rodilla salta de lado'); else avisos.add('un codo cambia de lado'); }
+          });
+        }
+        if (vmax > lim * 1.6) fallas.add('movimiento demasiado brusco'); else if (vmax > lim) avisos.add('movimiento rápido');
+      }
+    } catch (err) { fallas.add('no se pudo dibujar'); }
+    if (ej.rev) avisos.add(typeof ej.rev === 'string' ? ej.rev : 'técnica en revisión');
+    return { ok: !fallas.size && !ej.rev, fallas: [...fallas], avisos: [...avisos], vmax: typeof vmaxG === 'number' ? vmaxG : 0 };
+  }
+  // Tiempos del movimiento (para explicar la ejecución): { ida, vuelta, baja: 'ida' | 'vuelta' | null, tipo } o null.
+  function tempo(ej) { preparar(ej); return ej._pos.length > 1 ? cuadros(ej).fases : null; }
+  // Segunda vista del ejercicio (otro ángulo), si la tiene: mismo ejercicio, otras posturas.
+  function vista2(ej) {
+    if (!ej || !ej.v2) return null;
+    if (!ej._v2) ej._v2 = { ...ej, id: ej.id + '~v2', ...ej.v2, v2: null, _listo: false, _v2: null };
+    return ej._v2;
+  }
+  return { figura, mapa, modelo, PISO, resolver, mezcla, validar, tempo, vista2, cuadros: (ej) => { preparar(ej); return cuadros(ej); } };
 })();
 if (typeof module !== 'undefined') module.exports = FIG;
 
@@ -1767,7 +1914,7 @@ const EJ = (() => {
     esc: [{ k: 'l', a: [56, 84], b: [96, 40], w: 2.6 }, { k: 'r', x: 17, y: 62.5, w: 32, h: 5, a: 45 }, { k: 'r', x: 36, y: 74, w: 14, h: 4 }],
     eq: [{ k: 'placa', en: 'pm', o: [2.2, -2.2], a: -45 }] });
   add({ exc: 'vuelta', id: 'prensa-horizontal', n: 'Prensa horizontal', g: 'piernas', m: ['cuadriceps', 'gluteos'], s: ['isquios'], al: ['prensa horizontal'],
-    f: [{ c: [42, 64], t: 104, p: [[59, 54], [58, 55]], m: dos([45, 67]), pie: -90 }, { c: [42, 64], t: 104, p: [[76.5, 57], [75.5, 58]], m: dos([45, 67]), pie: -90 }],
+    f: [{ c: [42, 64], t: 104, p: [[64, 55.5], [63, 56.5]], m: dos([45, 67]), pie: -90 }, { c: [42, 64], t: 104, p: [[76.5, 57], [75.5, 58]], m: dos([45, 67]), pie: -90 }],
     esc: [{ k: 'r', x: 30, y: 34, w: 5, h: 34, a: -14 }, { k: 'r', x: 30, y: 66, w: 18, h: 4 }, { k: 'l', a: [40, 70], b: [40, 84], w: 2 }],
     eq: [{ k: 'placa', en: 'pm', o: [2.6, 0] }] });
   add({ id: 'leg-extension', n: 'Leg extension', g: 'piernas', m: ['cuadriceps'], al: ['leg extension', 'leg ext', 'extension de piernas', 'extension cuadriceps'],
@@ -1796,7 +1943,7 @@ const EJ = (() => {
   add({ id: 'silla-isometrica', n: 'Silla isométrica', g: 'piernas', m: ['cuadriceps'], s: ['gluteos'], al: ['silla isometrica', 'muro silla', 'silla'],
     esc: [{ k: 'r', x: 35, y: 8, w: 4, h: 76, rx: 1 }],
     f: [{ c: [45, 62], t: 90, p: pies(62, 61), m: dos([59, 61]), ko: [[0, -1], [0, -1]] }, { c: [45, 64.5], t: 90, p: pies(62, 61), m: dos([59, 63]), ko: [[0, -1], [0, -1]] }] });
-  add({ exc: 'vuelta', id: 'aductores', n: 'Aductores', g: 'piernas', m: ['aductores'], al: ['aductores', 'aducciones', 'adductores'],
+  add({ exc: 'vuelta', id: 'aductores', n: 'Aductores en polea', g: 'piernas', m: ['aductores'], al: ['aductores', 'aducciones', 'adductores'],
     f: [{ v: 'f', c: [60, 47], p: [[80, 76], [56, AP]], m: dos([70, 50], [50, 50]) }, { v: 'f', c: [60, 47], p: [[61, 80], [56, AP]], m: dos([70, 50], [50, 50]) }],
     esc: columna(104), lin: [{ k: 'cable', de: [104, 80], a: 'p0' }] });
   add({ id: 'soleo', n: 'Sóleo en máquina', g: 'piernas', m: ['pantorrillas'], al: ['soleo', 'sóleo', 'pantorrilla', 'gemelos'],
@@ -1810,17 +1957,17 @@ const EJ = (() => {
   thrust('hip-thrust-barra', 'Hip thrust con barra', ['hip thrust', 'hiptrust', 'hiptrusts', 'hipstrust', 'ht', 'hip thrust barra', 'hiptrust barra'], 'barra');
   thrust('hip-thrust-maquina', 'Hip thrust en máquina', ['hip thrust maquina', 'ht maquina', 'hiptrust maquina'], 'cojin');
   add({ id: 'puente-gluteo', n: 'Puente de glúteo con banda', g: 'gluteos', m: ['gluteos'], s: ['isquios', 'abductores'], al: ['puente', 'puentes', 'puente gluteo', 'gluteband', 'glute band', 'puentes con banda'],
-    f: [{ c: [52, 79], t: 180, p: pies(66, 64), m: dos([44, 82]) }, { c: [53, 67], t: 205, p: pies(66, 64), m: dos([44, 82]) }], eq: [{ k: 'bandita', en: 'r0' }] });
+    f: [{ c: [52, 79], t: 180, p: pies(66, 64), m: dos([53.4, 81.6]) }, { c: [53, 67], t: 205, p: pies(66, 64), m: dos([55.5, 81.6]) }], lin: [{ k: 'banda', de: 'r0', a: 'r1', w: 2.2 }] });
   add({ id: 'patada-gluteo-polea', n: 'Patada de glúteo en polea', g: 'gluteos', m: ['gluteos'], s: ['isquios'], al: ['patada de gluteo', 'patadas de gluteos', 'patada gluteos', 'patada gluteo polea', 'patadas banda', 'patada abductores'],
     f: [{ c: [54, 47], t: 74, p: [[57, 80], [56, AP]], m: dos([80, 44]) }, { c: [54, 47], t: 70, p: [[29, 62], [56, AP]], m: dos([80, 44]), ko: [[0, 1], null] }],
     esc: columna(84), lin: [{ k: 'cable', de: [84, 80], a: 'p0' }] });
   add({ id: 'patada-burro', n: 'Patada de burro', g: 'gluteos', m: ['gluteos'], s: ['isquios'], al: ['patada burro', 'patada de burro', 'patadas burro'],
     f: [{ ...CUADRUPEDIA }, { ...CUADRUPEDIA, p: [[25, 45], [23.5, 81.2]], ko: [[-1, 0.2], [0, 1]] }] });
-  add({ exc: 'vuelta', id: 'abductores', n: 'Abductores', g: 'gluteos', m: ['abductores', 'gluteos'], al: ['abductores', 'abducciones', 'abducciones maquina', 'abducciones laterales', 'abducciones glute band'],
+  add({ exc: 'vuelta', id: 'abductores', n: 'Abducción de cadera con banda', g: 'gluteos', m: ['abductores', 'gluteos'], al: ['abductores', 'abducciones', 'abducciones maquina', 'abducciones laterales', 'abducciones glute band'],
     f: [{ v: 'f', c: [60, 47], p: [[63, AP], [56, AP]], m: dos([70, 50], [50, 50]) }, { v: 'f', c: [59, 47], t: 94, p: [[81, 73], [56, AP]], m: dos([70, 50], [50, 50]) }],
     lin: [{ k: 'banda', de: 'p0', a: 'p1', o: [0, -2], od: [0, -2] }] });
   add({ id: 'almejas', n: 'Almejas', g: 'gluteos', m: ['abductores', 'gluteos'], al: ['almejas', 'almeja'],
-    f: [{ v: 'f', c: [50, 75], t: 180, cab: -10, p: [[82, 75.5], [82, 79]], m: dos([44, 68.5], [20, 69]), ko: [[0.15, 1], [0.15, 1]], co: [[0, -1], [-1, -0.2]] }, { v: 'f', c: [50, 75], t: 180, cab: -10, p: [[82, 75.5], [82, 79]], m: dos([44, 68.5], [20, 69]), ko: [[0.1, -1], [0.15, 1]], co: [[0, -1], [-1, -0.2]] }] });
+    f: [{ v: 'f', c: [50, 73.8], t: 180, cab: -10, p: [[82, 74.3], [82, 77.8]], m: dos([44, 67.3], [20, 67.8]), ko: [[0.15, 1], [0.15, 1]], co: [[0, -1], [-1, -0.2]] }, { v: 'f', c: [50, 73.8], t: 180, cab: -10, p: [[82, 74.3], [82, 77.8]], m: dos([44, 67.3], [20, 67.8]), ko: [[0.1, -1], [0.15, 1]], co: [[0, -1], [-1, -0.2]] }] });
   add({ id: 'pasos-laterales', n: 'Pasos laterales con banda', g: 'gluteos', m: ['abductores', 'gluteos'], s: ['cuadriceps'], al: ['pasos laterales', 'desplazamiento lateral', 'monstruosas', 'sentadillas monstruosas'],
     f: [{ v: 'f', c: [60, 53], p: [[65, AP], [55, AP]], m: [['h', 2, 15], ['h', -2, 15]] }, { v: 'f', c: [63, 53], p: [[75, AP], [55, AP]], m: [['h', 2, 15], ['h', -2, 15]] }],
     lin: [{ k: 'banda', de: 'p0', a: 'p1', o: [0, -3], od: [0, -3] }] });
@@ -1846,9 +1993,9 @@ const EJ = (() => {
   const dominada = (id, n, al, banda) => add({ id, n, g: 'espalda', m: ['dorsales'], s: ['biceps', 'espalda'], al, zoom: 0.84, piso: false,
     esc: [{ k: 'l', a: [34, 8], b: [86, 8], w: 2.4, cl: 'e2' }],
     f: [{ v: 'f', c: [60, 55.5], p: [[63, 87], [57, 87]], m: dos([67.5, 8.5], [52.5, 8.5]) }, { v: 'f', c: [60, 41], p: [[63, 73], [57, 73]], m: dos([67.5, 8.5], [52.5, 8.5]) }],
-    lin: banda ? [{ k: 'banda', de: [60, 8.5], a: 'pm', w: 2 }] : [] });
+    lin: banda === true ? [{ k: 'banda', de: [60, 8.5], a: 'pm', w: 2 }] : [], eq: banda === 'maquina' ? [{ k: 'cojin', en: 'pm', o: [0, 4.6] }] : [] });
   dominada('dominadas-banda', 'Dominadas con banda', ['dominadas con banda', 'dominadas banda'], true);
-  dominada('dominadas-asistidas', 'Dominadas asistidas', ['dominadas asistidas', 'dominadas', 'chin up libres'], false);
+  dominada('dominadas-asistidas', 'Dominadas asistidas', ['dominadas asistidas', 'dominadas', 'chin up libres'], 'maquina');
   add({ id: 'chin-up-negativo', n: 'Chin up negativo', g: 'espalda', m: ['dorsales', 'biceps'], s: ['espalda'], al: ['chin up', 'negativo', 'traccion supino negativo', 'remo negativo'], zoom: 0.84, piso: false, ico: 0,
     esc: [{ k: 'c', c: [64, 8.5], r: 2.2, cl: 'e2' }],
     f: [{ c: [59, 40], t: 94, p: [[64, 74], [61, 75]], m: dos([64, 8.6]), co: [1, 1] }, { c: [61, 56], t: 92, p: [[64, 89], [61, 90]], m: dos([64, 8.6]), co: [1, 1] }] });
@@ -1884,7 +2031,7 @@ const EJ = (() => {
     f: [{ v: 'f', c: [60, 64], p: [[70, AP], [50, AP]], m: dos([90, 40], [30, 40]), co: [[0, 1], [0, 1]] }, { v: 'f', c: [60, 64], p: [[70, AP], [50, AP]], m: dos([63, 38], [57, 38]), co: [[0, 1], [0, 1]] }],
     esc: [{ k: 'r', x: 49, y: 30, w: 22, h: 38, rx: 3 }], eq: [{ k: 'agarre', en: 'm0' }, { k: 'agarre', en: 'm1' }] });
   add({ id: 'fondos-triceps', n: 'Fondos de tríceps', g: 'brazos', m: ['triceps'], s: ['pecho', 'hombros'], al: ['fondos', 'fondos triceps', 'fondos de triceps', 'fondos arriba', 'fondos altura'],
-    f: [{ c: [49, 62], t: 90, p: pies(83, 82), m: dos([44, 62.5]), pie: -70 }, { c: [49, 72], t: 90, p: pies(83, 82), m: dos([44, 62.5]), pie: -70 }],
+    f: [{ c: [49, 62], t: 90, p: pies(76, 75), m: dos([44, 62.5]), pie: -20 }, { c: [49, 72], t: 90, p: pies(76, 75), m: dos([44, 62.5]), pie: -20 }],
     esc: banco(24, 63.5, 22) });
 
   /* ---------- HOMBROS ---------- */
@@ -1930,7 +2077,7 @@ const EJ = (() => {
     f: [{ ...BOCA_ARRIBA(62, 78), p: [[79, 60], [78, 61]], m: dos([39, 54], [40, 54]) }, { ...BOCA_ARRIBA(62, 78), p: [[79, 60], [96, 74]], m: dos([16, 74], [40, 54]) }] });
   add({ id: 'plancha', n: 'Plancha frontal', g: 'core', m: ['abdominales'], s: ['hombros', 'gluteos'], al: ['plancha', 'plancha frontal', 'tabla'], f: [{ ...PLANCHA_ANTEB }] });
   add({ id: 'plancha-lateral', n: 'Plancha lateral', g: 'core', m: ['oblicuos', 'abdominales'], s: ['hombros', 'abductores'], al: ['plancha lateral', 'lateral plancha', 'plancha lat'],
-    f: [{ v: 'f', c: [56, 75], t: 8, p: [[22, 81.5], [22, 79]], m: dos([84, 82], [62, 44]), co: [[0, 1], [0, -1]] }, { v: 'f', c: [56, 70], t: 14, p: [[22, 81.5], [22, 79]], m: dos([84, 82], [62, 38]), co: [[0, 1], [0, -1]] }] });
+    f: [{ v: 'f', c: [56.5, 73], t: 26, p: [[24.5, 81], [24.5, 78.5]], m: dos([93.2, 81.4], [64, 43]), co: [[0, 1], [0, -1]] }, { v: 'f', c: [57, 70], t: 20, p: [[24.5, 81], [24.5, 78.5]], m: dos([93.2, 81.4], [63, 39]), co: [[0, 1], [0, -1]] }] });
   add({ id: 'plancha-dinamica', n: 'Plancha dinámica', g: 'core', m: ['abdominales'], s: ['hombros', 'triceps'], al: ['plancha dinamica', 'subo y bajo plancha', 'plancha dinámica'],
     f: [{ ...PLANCHA_ANTEB }, { c: [55.7, 66.9], t: 25, p: pies(22, 22, 82), m: dos([77, 82]) }] });
   add({ id: 'plancha-spider', n: 'Plancha spider', g: 'core', m: ['oblicuos', 'abdominales'], s: ['hombros'], al: ['spider', 'plancha spider', 'tabla spider'],
@@ -1938,28 +2085,28 @@ const EJ = (() => {
   add({ id: 'toque-hombros', n: 'Plancha toque de hombros', g: 'core', m: ['abdominales'], s: ['hombros'], al: ['toque de hombros', 'toques de hombro', 'tabla toque de hombros', 'flexion toque de hombros'],
     f: [{ ...PLANCHA_ALTA }, { ...PLANCHA_ALTA, m: dos(['h', 2, 2.5], [72, 82]), co: [[-0.3, -1], null] }] });
   add({ id: 'tabla-a-silla', n: 'Tabla a silla', g: 'core', m: ['abdominales', 'cuadriceps'], s: ['hombros'], al: ['tabla a silla', 'tabla-silla', 'tabla silla'],
-    f: [{ ...PLANCHA_ALTA }, { c: [50, 63], t: 22, cab: 14, p: pies(62, 60), m: dos([74, 82]), ko: ABAJO }, { c: [52, 66], t: 60, p: pies(64, 62), m: dos([76, 50]) }] });
-  add({ id: 'tabla-abro-cierro', n: 'Tabla abro-cierro', g: 'core', m: ['abdominales'], s: ['hombros', 'aductores'], al: ['abro-cierro', 'abro cierro', 'tabla abro'],
+    f: [{ ...PLANCHA_ALTA }, { c: [46, 66], t: 12, cab: 14, p: pies(59, 57), m: dos([72, 82]) }, { c: [47, 66], t: 60, p: pies(59, 57), m: dos([79, 37]) }] });
+  add({ rev: 'falta la vista desde arriba', id: 'tabla-abro-cierro', n: 'Tabla abro-cierro', g: 'core', m: ['abdominales'], s: ['hombros', 'aductores'], al: ['abro-cierro', 'abro cierro', 'tabla abro'],
     f: [{ ...PLANCHA_ALTA }, { ...PLANCHA_ALTA, c: [51.2, 65.4], p: pies(19.5, 19.5, 79) }] });
   add({ id: 'tabla-a-carpa', n: 'Tabla a carpa', g: 'core', m: ['abdominales'], s: ['hombros'], al: ['tabla a carpa', 'carpa', 'toque de tobillos en carpa'],
     f: [{ ...PLANCHA_ALTA }, { c: [40, 53], t: -24, p: pies(19.5, 19.5, 82), m: dos([72, 82]) }] });
   add({ id: 'delfin', n: 'Delfín', g: 'core', m: ['abdominales', 'hombros'], al: ['delfin', 'delfín', 'delfines'],
-    f: [{ ...PLANCHA_ANTEB }, { c: [44, 55], t: -32, p: pies(22, 22, 82), m: dos([90, 82]), co: ABAJO }] });
+    f: [{ ...PLANCHA_ANTEB }, { c: [49, 60.5], t: -32, cab: -8, p: pies(22, 22, 82), m: dos([90, 82]), co: ABAJO }] });
   add({ id: 'rueda-abdominal', n: 'Rueda abdominal', g: 'core', m: ['abdominales'], s: ['dorsales', 'hombros'], al: ['rueda', 'ruedita', 'rueda abdominal'],
-    f: [{ c: [46, 63], t: 55, p: pies(28, 27.5, 80.5), m: dos([62, 77.6]), ko: ABAJO }, { c: [52, 70], t: 12, p: pies(28, 27.5, 80.5), m: dos([96, 77.6]), ko: ABAJO }], eq: [{ k: 'rueda', en: 'mm', o: [0, 2] }] });
+    f: [{ c: [46, 63.6], t: 25, p: pies(27.2, 27, 80.5), m: dos([67, 77.6]), ko: ABAJO }, { c: [56, 68], t: 12, p: pies(27.2, 27, 80.5), m: dos([96, 77.6]), ko: ABAJO }], eq: [{ k: 'rueda', en: 'mm', o: [0, 2] }] });
   add({ id: 'crunch-banca', n: 'Crunch en banca', g: 'core', m: ['abdominales'], al: ['crunch banca', 'crunch', 'crunch maquina', 'crunch completo'],
-    f: [{ ...BOCA_ARRIBA(64, 79), p: pies(78, 76), m: dos(['k', 0, 3]) }, { c: [64, 79], t: 145, cu: -45, cab: -10, p: pies(78, 76), m: dos(['k', 1, 3]) }] });
+    f: [{ ...BOCA_ARRIBA(64, 79), p: pies(78, 76), m: dos(['k', 0, 3]), co: [[-0.2, -1], [-0.2, -1]] }, { c: [64, 79], t: 150, cu: -45, cab: -10, p: pies(78, 76), m: dos(['k', 1, 3]), co: [[-0.2, -1], [-0.2, -1]] }] });
   add({ id: 'rap-colgado', n: 'Rodillas al pecho colgado', g: 'core', m: ['abdominales'], s: ['oblicuos', 'antebrazos'], al: ['rap colgada', 'rap colgado', 'rap colgada con'], zoom: 0.84, piso: false,
     esc: [{ k: 'c', c: [60, 8.5], r: 2.2, cl: 'e2' }],
     f: [{ c: [58, 56], t: 92, p: [[58, 90], [56, 90]], m: dos([60, 8.6]) }, { c: [56, 55], t: 98, p: [[72, 60], [70, 61]], m: dos([60, 8.6]) }] });
   add({ id: 'rap-suelo', n: 'Rodillas al pecho en el suelo', g: 'core', m: ['abdominales'], al: ['rap suelo', 'rap suelo obs', 'rap banco', 'rap banca', 'rap alternado', 'ovillo', 'ovillos'],
     f: [{ c: [50, 80], t: 122, p: [[84, 74], [83, 75]], m: dos([30, 82]) }, { c: [50, 80], t: 116, p: [[62, 66], [61, 67]], m: dos([30, 82]) }] });
   add({ id: 'elevacion-piernas', n: 'Elevación de piernas', g: 'core', m: ['abdominales'], al: ['elevacion de piernas', 'elevación de piernas', 'elevaciones de piernas', 'leg raiser', 'sube y baja piernas', 'elevacion piernas'],
-    f: [{ ...BOCA_ARRIBA(58, 80), p: [[93, 77], [92, 78]], m: dos([50, 82]) }, { ...BOCA_ARRIBA(58, 80), p: [[60, 45], [59, 46]], m: dos([50, 82]) }] });
+    f: [{ ...BOCA_ARRIBA(58, 79.5), p: [[92.8, 78], [92.4, 78.6]], m: dos([58.6, 81.6]), co: [[0, -1], [0, -1]] }, { ...BOCA_ARRIBA(58, 79.5), p: [[60, 44.6], [59.4, 45]], m: dos([58.6, 81.6]), co: [[0, -1], [0, -1]] }] });
   add({ id: 'l-sit', n: 'L-sit', g: 'core', m: ['abdominales'], s: ['triceps', 'cuadriceps'], al: ['l-sit', 'l sit', 'l site'],
     esc: [{ k: 'r', x: 48, y: 70.5, w: 10, h: 13.5, rx: 1.2 }], f: [{ c: [52, 68], t: 94, p: [[87, 68], [86, 69]], m: dos([53, 70.4]), co: ABAJO }] });
   add({ id: 'v-sit', n: 'V-sit', g: 'core', m: ['abdominales'], al: ['v-sit', 'v sit', 'vsite', 'v-site', 'v-up'],
-    f: [{ ...BOCA_ARRIBA(58, 80), p: [[93, 79], [92, 80]], m: dos([12, 80]) }, { c: [56, 78], t: 135, p: [[80, 54], [79, 55]], m: dos([70, 52]) }] });
+    f: [{ ...BOCA_ARRIBA(58, 79.5), p: [[92.8, 78.4], [92.4, 79]], m: dos([10.4, 79]) }, { c: [56, 78], t: 135, p: [[80, 54], [79, 55]], m: dos([62.5, 56]) }] });
   add({ id: 'twist', n: 'Twist con mancuerna', g: 'core', m: ['oblicuos', 'abdominales'], al: ['twist', 'twist mancuerna', 'giro ruso'],
     f: [{ v: 'f', c: [60, 75], t: 86, tl: 0.85, lm: 0.6, p: [[64, 80], [56, 80]], pie: [60, 120], ko: [[0.4, -1], [-0.4, -1]], m: dos([80, 66], [76, 64]) }, { v: 'f', c: [60, 75], t: 94, tl: 0.85, lm: 0.6, p: [[64, 80], [56, 80]], pie: [60, 120], ko: [[0.4, -1], [-0.4, -1]], m: dos([44, 64], [40, 66]) }], eq: [{ k: 'mancuernaF', en: 'mm' }] });
   add({ exc: 'vuelta', id: 'lenador', n: 'Leñador', g: 'core', m: ['oblicuos', 'abdominales'], s: ['hombros'], al: ['leñador', 'lenador', 'woodchop'], zoom: 0.9,
@@ -1975,7 +2122,7 @@ const EJ = (() => {
   add({ id: 'tijeras-bote', n: 'Tijeras en bote', g: 'core', m: ['abdominales'], s: ['aductores'], al: ['tijeras', 'tijeras en bote'],
     f: [{ c: [56, 79], t: 132, p: [[88, 58], [89, 74]], m: dos(['h', 22, 4]) }, { c: [56, 79], t: 132, p: [[89, 74], [88, 58]], m: dos(['h', 22, 4]) }] });
   add({ id: 'caminata-manos', n: 'Caminata de manos', g: 'core', m: ['abdominales', 'hombros'], s: ['isquios'], al: ['caminata de manos', 'caminata manos', 'gusano'],
-    f: [{ c: [28, 48], t: -70, p: pies(32, 30), m: dos([40, 82]) }, { c: [61.7, 66.9], t: 25, p: pies(30, 30, 82), m: dos([83, 82]) }] });
+    f: [{ c: [30, 47], t: -25, cab: 10, p: pies(32, 30), pie: [0, 0], m: dos([52, 82]) }, { c: [61.7, 66.9], t: 25, p: pies(30, 30, 82), pie: [62, 62], m: dos([83, 82]) }] });
   add({ id: 'oso', n: 'Oso (bear crawl)', g: 'core', m: ['abdominales', 'hombros'], s: ['cuadriceps'], al: ['oso', 'bear', 'bear crawl', 'traslado mancuerna en oso'],
     f: [{ c: [44, 60], t: 8, p: [[28, AP], [34, AP]], m: dos([72, 82], [64, 82]), ko: ABAJO }, { c: [44, 60], t: 8, p: [[34, AP], [28, AP]], m: dos([64, 82], [72, 82]), ko: ABAJO }] });
   add({ id: 'granjero', n: 'Caminata del granjero', g: 'core', m: ['antebrazos', 'trapecio', 'abdominales'], s: ['gluteos'], al: ['granjero', 'caminata del granjero'],
@@ -1984,7 +2131,7 @@ const EJ = (() => {
   /* ---------- CARDIO ---------- */
   const C = { cardio: true };
   add({ id: 'burpee', n: 'Burpee', g: 'cardio', m: ['cuadriceps', 'pecho'], s: ['hombros', 'abdominales'], al: ['burpee', 'burpees', 'tortuga-delfin burpee'], ...C, zoom: 0.86, ciclo: true, dur: 3.4,
-    f: [{ ...PIE }, { c: [50, 64], t: 42, p: pies(60, 57.5), m: dos([72, 82]) }, { ...PLANCHA_ALTA }, { c: [50, 64], t: 42, p: pies(60, 57.5), m: dos([72, 82]) }, { c: [58, 40], t: 90, p: pies(59, 57, 76), m: dos([62, -2], [60, -2]) }] });
+    f: [{ ...PIE }, { c: [48, 66], t: 14, cab: 12, p: pies(60, 57.5), m: dos([72, 82]) }, { ...PLANCHA_ALTA }, { c: [48, 66], t: 14, cab: 12, p: pies(60, 57.5), m: dos([72, 82]) }, { c: [58, 40], t: 90, p: pies(59, 57, 76), pie: [55, 55], m: dos([62, -2], [60, -2]) }] });
   add({ id: 'escaladores', n: 'Escaladores', g: 'cardio', m: ['abdominales', 'cuadriceps'], s: ['hombros'], al: ['escaladores', 'escalador'], ...C,
     f: [{ ...PLANCHA_ALTA, p: [[48, 78], [19.5, 82]], ko: [[1, 0.5], null] }, { ...PLANCHA_ALTA, p: [[19.5, 82], [48, 78]], ko: [null, [1, 0.5]] }] });
   add({ id: 'jumping-jacks', n: 'Jumping jacks', g: 'cardio', m: ['cuadriceps', 'hombros'], s: ['pantorrillas'], al: ['jumping jack', 'jumping jacks'], ...C, zoom: 0.86,
@@ -1998,10 +2145,10 @@ const EJ = (() => {
     f: [{ ...SENT_ABAJO, p: pies(61, 57.5), m: dos(['h', -4, 20]) }, { c: [58, 40], t: 90, p: pies(59, 57, 76), m: dos([62, -1], [60, -1]) }] });
   add({ id: 'estocada-salto', n: 'Estocada con salto', g: 'cardio', m: ['cuadriceps', 'gluteos'], s: ['isquios'], al: ['estocada con salto', 'estocadas con salto', 'estocadas en salto'], ...C,
     f: [{ c: [58, 62], t: 90, p: [[72, AP], [44, 79.4]], pie: [0, 58], ko: [null, [0.3, 1]] }, { c: [58, 46], t: 90, p: [[66, 72], [50, 72]], pie: [20, 40] }, { c: [58, 62], t: 90, p: [[44, 79.4], [72, AP]], pie: [58, 0], ko: [[0.3, 1], null] }] });
-  add({ id: 'speed-skate', n: 'Speed skate', g: 'cardio', m: ['gluteos', 'cuadriceps'], s: ['abductores'], al: ['speed skate', 'skater'], ...C,
+  add({ rev: 'vista en revisión', id: 'speed-skate', n: 'Speed skate', g: 'cardio', m: ['gluteos', 'cuadriceps'], s: ['abductores'], al: ['speed skate', 'skater'], ...C,
     f: [{ v: 'f', c: [74, 58], t: 80, p: [[78, AP], [66, 77]], m: dos([86, 50], [62, 58]) }, { v: 'f', c: [46, 58], t: 100, p: [[54, 77], [42, AP]], m: dos([58, 58], [34, 50]) }] });
   add({ id: 'cielo-tierra', n: 'Cielo a tierra', g: 'cardio', m: ['cuadriceps', 'gluteos'], s: ['hombros'], al: ['cielo a tierra', 'cielo tierra'], ...C, zoom: 0.86,
-    f: [{ c: [58, 44.5], t: 90, p: pies(59, 57, 79.5), pie: [60, 60], m: dos([60, -4], [58, -4]) }, { c: [50, 65], t: 35, p: pies(60, 57.5), pie: [0, 0], m: dos([71, 82]) }] });
+    f: [{ c: [58, 44.5], t: 90, p: pies(59, 57, 79.5), pie: [60, 60], m: dos([60, -4], [58, -4]) }, { c: [50, 66], t: 16, cab: 12, p: pies(60, 57.5), pie: [0, 0], m: dos([73, 82]) }] });
   add({ id: 'wall-ball', n: 'Wall ball', g: 'cardio', m: ['cuadriceps', 'gluteos', 'hombros'], al: ['wall ball', 'wallball', 'wall vall'], ...C, zoom: 0.86,
     f: [{ ...SENT_ABAJO, t: 64, p: pies(61, 57.5), m: dos(['h', 6, 4]), co: ABAJO }, { ...PIE, p: pies(61, 57.5, 79.5), pie: [50, 50], m: dos([61, -1]) }], eq: [{ k: 'balon', en: 'mm', o: [0, -3] }] });
   add({ id: 'balon-suelo', n: 'Balón al suelo', g: 'cardio', m: ['dorsales', 'abdominales', 'hombros'], al: ['balon al suelo', 'balón al suelo', 'balon suelo', 'floor ball', 'slam'], ...C, zoom: 0.86,
@@ -2020,7 +2167,7 @@ const EJ = (() => {
     f: [{ c: [58, 47], t: 92, p: [[67, 76], [54, AP]], pie: [20, 50], m: dos(['h', -5, 18], ['h', 8, 12]) }, { c: [62, 47], t: 92, p: [[58, AP], [70, 76]], pie: [50, 20], m: dos(['h', 8, 12], ['h', -5, 18]) }] });
   add({ id: 'remadora', n: 'Remadora', g: 'cardio', m: ['espalda', 'cuadriceps'], s: ['biceps', 'isquios'], al: ['remadora', 'remo maquina', 'remoergometro'], ...C,
     esc: [{ k: 'r', x: 18, y: 79, w: 76, h: 3, rx: 1.4 }, { k: 'c', c: [98, 68], r: 9 }, { k: 'r', x: 76, y: 62, w: 3.6, h: 17, a: -12 }],
-    f: [{ c: [50, 74.5], t: 68, p: [[74, 73], [73, 73.5]], pie: -80, ko: [[0, -1], [0, -1]], m: dos([80, 63]) }, { c: [40, 74.5], t: 106, p: [[74, 73], [73, 73.5]], pie: -80, m: dos([47, 57]) }],
+    f: [{ c: [47, 74.5], t: 74, p: [[74, 73], [73, 73.5]], pie: -80, ko: [[0, -1], [0, -1]], m: dos([77, 62]) }, { c: [40, 74.5], t: 106, p: [[74, 73], [73, 73.5]], pie: -80, m: dos([47, 57]) }],
     eq: [{ k: 'asiento', en: 'c' }], lin: [{ k: 'cable', de: [96, 66], a: 'mm', cl: 'e2', w: 1.2 }] });
   add({ id: 'escaladora', n: 'Escaladora', g: 'cardio', m: ['cuadriceps', 'gluteos'], s: ['pantorrillas'], al: ['escaladora', 'stair', 'escaladores step'], ...C, zoom: 0.9,
     esc: [{ k: 'path', d: 'M40 84V74H54V64H68V54H96', w: 2.2, cl: 'e4' }, { k: 'l', a: [84, 54], b: [84, 30], w: 2 }, { k: 'l', a: [84, 30], b: [72, 30], w: 2 }],
@@ -2033,12 +2180,14 @@ const EJ = (() => {
   /* ---------- MOVILIDAD ---------- */
   add({ id: 'gato-camello', n: 'Gato-camello', g: 'movilidad', m: ['lumbares', 'abdominales'], al: ['gato camello', 'gato-camello', 'gato', 'camello', 'movilidad'],
     f: [{ ...CUADRUPEDIA, cu: -125, cab: -36 }, { ...CUADRUPEDIA, cu: 95, cab: 30 }] });
-  add({ id: 'cadera-90-90', n: 'Movilidad de cadera 90/90', g: 'movilidad', m: ['gluteos'], s: ['aductores'], al: ['90/90', '90-90', 'cadera 90'],
-    f: [{ v: 'f', c: [60, 76], t: 98, p: [[82, 82], [70, 82]], m: dos([70, 80], [50, 74]), ko: [[0.6, -1], [0.6, -1]] }, { v: 'f', c: [60, 76], t: 82, p: [[50, 82], [38, 82]], m: dos([70, 74], [50, 80]), ko: [[-0.6, -1], [-0.6, -1]] }] });
+  add({ id: 'cadera-90-90', n: 'Movilidad de cadera 90/90', g: 'movilidad', m: ['gluteos'], s: ['aductores'], al: ['90/90', '90-90', 'cadera 90'], dur: 6, rev: 'vista en revisión',
+    f: [{ v: 'f', c: [60, 75], t: 93, tl: 0.9, p: [[64.2, 81.5], [55.5, 81.5]], ko: [[1, 0], [1, 0]], m: dos([62, 62], [58, 62]), co: [[1, 0.5], [-1, 0.5]] },
+      { v: 'f', c: [60, 75], t: 90, tl: 0.9, lm: 0.7, p: [[71, 81], [49, 81]], ko: [[0.2, -1], [-0.2, -1]], m: dos([62, 62], [58, 62]), co: [[1, 0.5], [-1, 0.5]] },
+      { v: 'f', c: [60, 75], t: 87, tl: 0.9, p: [[64.5, 81.5], [55.8, 81.5]], ko: [[-1, 0], [-1, 0]], m: dos([62, 62], [58, 62]), co: [[1, 0.5], [-1, 0.5]] }] });
   add({ id: 'apertura-toracica', n: 'Apertura torácica', g: 'movilidad', m: ['espalda'], s: ['hombros', 'oblicuos'], al: ['apertura toracica', 'apertura pecho', 'tabla con apertura'],
     f: [{ ...CUADRUPEDIA, m: dos([52, 80], [64, 82]), cab: -24 }, { ...CUADRUPEDIA, m: dos([66, 33], [64, 82]), cab: 34 }] });
   add({ id: 'rotacion-columna', n: 'Rotación de columna', g: 'movilidad', m: ['oblicuos'], s: ['lumbares'], al: ['rotacion columna', 'rotación de columna', 'giro'],
-    f: [{ v: 'f', c: [60, 75], p: [[53, 81.5], [67, 81.5]], ko: [[1, -0.25], [-1, -0.25]], m: dos([82, 58], [68, 56]), co: [[0, 1], [0, 1]] }, { v: 'f', c: [60, 75], p: [[53, 81.5], [67, 81.5]], ko: [[1, -0.25], [-1, -0.25]], m: dos([52, 56], [38, 58]), co: [[0, 1], [0, 1]] }] });
+    f: [{ v: 'f', c: [60, 75], t: 86, p: [[63.5, 80.5], [56.5, 80.5]], ko: [[1, -0.5], [-1, -0.5]], pie: [180, 0], m: dos([82, 58], [68, 56]), co: [[0, 1], [0, 1]] }, { v: 'f', c: [60, 75], t: 94, p: [[63.5, 80.5], [56.5, 80.5]], ko: [[1, -0.5], [-1, -0.5]], pie: [180, 0], m: dos([52, 56], [38, 58]), co: [[0, 1], [0, 1]] }] });
   add({ id: 'movilidad-tobillo', n: 'Movilidad de tobillo', g: 'movilidad', m: ['pantorrillas'], al: ['tobillo', 'movilidad de tobillo', 'tobillos'],
     f: [{ c: [50, 63], t: 90, p: [[66, AP], [33, 81]], m: dos([63, 63]), ko: [null, [0.2, 1]] }, { c: [55, 63], t: 86, p: [[66, AP], [36, 81]], m: dos([70, 62]), ko: [null, [0.2, 1]] }] });
   add({ id: 'sentadilla-profunda', n: 'Sentadilla profunda asistida', g: 'movilidad', m: ['cuadriceps', 'gluteos'], s: ['pantorrillas'], al: ['sentadilla profunda', 'sentadilla asistida'], zoom: 0.95,
@@ -2050,9 +2199,9 @@ const EJ = (() => {
   add({ id: 'cuello-movilidad', n: 'Movilidad de cuello', g: 'movilidad', m: ['trapecio'], al: ['movilidad de cuello', 'cuello', 'inclinacion de cuello'], ciclo: true, dur: 6,
     f: [0, 34, 0, -34].map((cab) => ({ ...FRENTE, cab, m: dos([66, 50], [54, 50]) })) });
   add({ id: 'rotacion-hombros', n: 'Rotación de hombros', g: 'movilidad', m: ['hombros'], s: ['trapecio'], al: ['rotacion de hombros', 'rotaciones de hombros', 'circulos de hombros', 'hombros atras', 'molino'], ciclo: true, dur: 4.2,
-    f: [0, 1, 2, 3, 4, 5].map((k) => { const [x, y] = circ(k, 6, 24.4, 90); return { ...PIE, m: dos([58 + x, 24 + y], [57.4 + x, 24.4 + y]), co: [[x >= 0 ? 1 : -1, -0.2], [x >= 0 ? 1 : -1, -0.2]] }; }) });
+    f: [0, 1, 2, 3, 4, 5].map((k) => { const [x, y] = circ(k, 6, 24.9, 90); return { ...PIE, m: dos([58 + x, 24 + y], [57.4 + x, 24.4 + y]), co: [[x >= 0 ? 1 : -1, -0.2], [x >= 0 ? 1 : -1, -0.2]] }; }) });
   add({ id: 'circulos-brazos', n: 'Círculos de brazos', g: 'movilidad', m: ['hombros'], s: ['espalda'], al: ['circulos de brazos', 'circulos con los brazos', 'movilidad de brazos', 'rotacion de brazos'], ciclo: true, dur: 2.4,
-    f: [0, 1, 2, 3].map((k) => { const [x, y] = circ(k, 4, 4.5); return { ...FRENTE, m: dos([89 + x, 25 + y], [31 - x, 25 + y]) }; }) });
+    f: [0, 1, 2, 3].map((k) => { const y = circ(k, 4, 4.6)[1]; const x = Math.sqrt(24.8 ** 2 - y * y); return { ...FRENTE, m: dos([67.2 + x, 24 + y], [52.8 - x, 24 + y]) }; }) });
   add({ id: 'rotacion-cadera', n: 'Rotación de cadera', g: 'movilidad', m: ['gluteos', 'oblicuos'], s: ['lumbares'], al: ['rotacion de cadera', 'rotaciones de cadera', 'circulos de cadera', 'movilidad de cadera'], ciclo: true, dur: 3.6,
     f: [0, 1, 2, 3].map((k) => { const [x, y] = circ(k, 4, 3.4); return { v: 'f', c: [60 + x, 48 + y * 0.35], t: 90 + x * 1.6, p: [[65.5, AP], [54.5, AP]], m: dos([68, 46], [52, 46]), co: [[1, 0.2], [-1, 0.2]] }; }) });
   add({ id: 'marcha-activa', n: 'Marcha activa', g: 'movilidad', m: ['cuadriceps'], s: ['pantorrillas', 'abdominales'], al: ['marcha activa', 'marcha', 'marcha en el lugar', 'caminata en el lugar'], dur: 1.7,
@@ -2067,15 +2216,15 @@ const EJ = (() => {
   const COLCHONETA = [{ k: 'r', x: 8, y: 82.4, w: 104, h: 2.2, rx: 1.1, cl: 'e4' }];
   const PARED = (x) => [{ k: 'r', x, y: 6, w: 4, h: 78, rx: 1 }];
   add({ id: 'estiramiento-isquios', n: 'Estiramiento de isquios de pie', ...E, m: ['isquios'], s: ['pantorrillas', 'lumbares'], al: ['estiramiento isquios', 'estiramiento de isquios', 'isquios', 'toque tobillos suelo', 'elongacion isquios', 'isquios de pie'],
-    f: [{ c: [50, 51], t: 88, p: [[73, 80.4], [46, AP]], pie: [-68, 0], m: dos([60, 60]) }, { c: [50, 54], t: 38, cab: 4, p: [[74, 80.4], [45, AP]], pie: [-68, 0], ko: [null, [1, -0.2]], m: dos([66, 64]) }] });
+    f: [{ c: [50, 51], t: 88, p: [[70, 80.4], [46, AP]], pie: [-68, 0], m: dos([58, 62]) }, { c: [47.5, 54], t: 38, cab: 4, p: [[70, 80.4], [46, AP]], pie: [-68, 0], ko: [null, [1, -0.2]], m: dos([63, 65]) }] });
   add({ id: 'isquios-sentado', n: 'Estiramiento de isquios sentado', ...E, m: ['isquios'], s: ['pantorrillas', 'lumbares'], al: ['isquios sentado', 'pinza sentado', 'estiramiento isquios sentado', 'elongacion isquios sentado'], esc: COLCHONETA,
     f: [{ c: [38, 79], t: 84, p: [[73, 80.5], [72.5, 81]], pie: -80, m: dos([52, 76]) }, { c: [38, 79], t: 40, cab: -4, p: [[73, 80.5], [72.5, 81]], pie: -80, m: dos([71, 76.5]) }] });
   add({ id: 'estiramiento-cuadriceps', n: 'Estiramiento de cuádriceps de pie', ...E, m: ['cuadriceps'], s: ['abdominales'], al: ['estiramiento cuadriceps', 'estiramiento de cuadriceps', 'cuadriceps estiramiento', 'elongacion cuadriceps'],
     f: [{ ...PIE, p: [[51, 64], [58.5, AP]], m: dos([50, 62], ['h', 3, 23]), ko: [[0, 1], null] }, { ...PIE, p: [[44, 52.5], [58.5, AP]], m: dos([44, 53], [72, 36]), ko: [[0, 1], null] }] });
   add({ id: 'flexor-cadera', n: 'Estiramiento de flexor de cadera', ...E, m: ['cuadriceps'], s: ['abdominales', 'gluteos'], al: ['flexor de cadera', 'flexores de cadera', 'psoas', 'estiramiento psoas', 'elongacion psoas'], esc: COLCHONETA,
-    f: [{ c: [47, 66], t: 92, p: [[22, 81.5], [70, AP]], pie: [180, 0], ko: [[0, 1], [0.25, -1]], m: dos([66, 63]) }, { c: [54, 68.5], t: 98, cab: -6, p: [[22, 81.5], [70, AP]], pie: [180, 0], ko: [[0, 1], [0.25, -1]], m: dos(['h', 5, -20]), co: [[0, -1], [0, -1]] }] });
+    f: [{ c: [47, 66], t: 92, p: [[22, 81.5], [70, AP]], pie: [180, 0], ko: [[0, 1], [0.25, -1]], m: dos([66, 63]) }, { c: [53, 68.5], t: 93, cab: -4, p: [[22, 81.5], [70, AP]], pie: [180, 0], ko: [[0, 1], [0.25, -1]], m: dos(['h', 5, -20]), co: [[0, -1], [0, -1]] }] });
   add({ id: 'postura-nino', n: 'Postura del niño', ...E, m: ['dorsales', 'lumbares'], s: ['gluteos', 'hombros'], al: ['postura del nino', 'posicion del nino', 'nino', 'child pose', 'balasana'], esc: COLCHONETA,
-    f: [{ ...CUADRUPEDIA, c: [46, 63], p: [[30, 81.2], [29.5, 81.6]], pie: [180, 180], m: dos([70, 82]) }, { c: [36.5, 71], t: -13, cab: -6, p: [[34, 81.4], [33.5, 81.8]], pie: [180, 180], ko: [[1, 0.6], [1, 0.6]], m: dos([90, 81.5]) }] });
+    f: [{ ...CUADRUPEDIA, c: [46, 63], p: [[30, 81.2], [29.5, 81.6]], pie: [180, 180], m: dos([70, 82]) }, { c: [36.5, 71], t: -13, cab: -6, p: [[34, 81.4], [33.5, 81.8]], pie: [180, 180], ko: [[1, 0.6], [1, 0.6]], m: dos([83.4, 81.5]) }] });
   add({ id: 'cobra', n: 'Cobra', ...E, m: ['abdominales'], s: ['lumbares', 'pecho'], al: ['cobra', 'estiramiento abdominal', 'elongacion abdominal'], esc: COLCHONETA,
     f: [{ c: [48, 80], t: 4, p: pies(14, 14, 81.5), m: dos([66, 82]), co: [[-1, -0.6], [-1, -0.6]], cab: 6 }, { c: [48, 80], t: 46, cu: 24, cab: 26, p: pies(14, 14, 81.5), m: dos([68, 82]) }] });
   add({ id: 'perro-boca-abajo', n: 'Perro boca abajo', ...E, m: ['isquios', 'pantorrillas'], s: ['dorsales', 'hombros'], al: ['perro boca abajo', 'down dog'], esc: COLCHONETA,
@@ -2091,26 +2240,262 @@ const EJ = (() => {
   add({ id: 'inclinacion-lateral', n: 'Inclinación lateral de pie', ...E, m: ['oblicuos', 'dorsales'], s: ['abdominales'], al: ['inclinacion lateral', 'estiramiento lateral', 'estiramiento oblicuos', 'elongacion lateral'], zoom: 0.92,
     f: [{ v: 'f', c: [60, 47], p: [[66, AP], [54, AP]], m: dos([71, 49], [56, 4]), co: [[1, 0.2], [-1, -0.4]] }, { v: 'f', c: [58, 47], t: 74, p: [[66, AP], [54, AP]], m: dos([76, 50], [80, 6]), co: [[1, 0.2], [-0.6, -1]] }] });
   add({ id: 'mariposa', n: 'Mariposa (aductores)', ...E, m: ['aductores'], s: ['gluteos'], al: ['mariposa', 'estiramiento aductores', 'estiramiento de aductores', 'elongacion aductores'], esc: COLCHONETA,
-    f: [{ v: 'f', c: [60, 77], t: 90, p: [[63.5, 80.5], [56.5, 80.5]], ko: [[1, -0.7], [-1, -0.7]], pie: [180, 0], m: dos([63, 79.5], [57, 79.5]) }, { v: 'f', c: [60, 77], t: 90, p: [[63.5, 80.5], [56.5, 80.5]], ko: [[1, -0.15], [-1, -0.15]], pie: [180, 0], m: dos([63, 79.5], [57, 79.5]) }] });
+    f: [{ v: 'f', c: [60, 75], t: 90, tl: 0.9, lm: 0.7, p: [[63.5, 80.5], [56.5, 80.5]], ko: [[1, -0.5], [-1, -0.5]], pie: [180, 0], m: dos([63, 79.5], [57, 79.5]) }, { v: 'f', c: [60, 75], t: 90, tl: 0.8, lm: 1, p: [[63.5, 80.5], [56.5, 80.5]], ko: [[1, -0.5], [-1, -0.5]], pie: [180, 0], m: dos([63, 79.5], [57, 79.5]) }] });
   add({ id: 'rodilla-pecho', n: 'Rodilla al pecho acostado', ...E, m: ['gluteos', 'lumbares'], s: ['isquios'], al: ['rodilla al pecho', 'rodillas al pecho acostado', 'estiramiento gluteo', 'estiramiento de gluteo', 'estiramiento gluteos', 'elongacion gluteo'], esc: COLCHONETA,
     f: [{ ...BOCA_ARRIBA(64, 79.5), p: [[76, 64], [98, 80.5]], pie: [-40, -80], ko: [[-0.3, -1], null], m: dos([62, 66]) }, { ...BOCA_ARRIBA(64, 79.5), cab: -10, p: [[71, 59.5], [98, 80.5]], pie: [-20, -80], ko: [[-1, -0.5], null], m: dos([60, 61.5]), co: [[0, 1], [0, 1]] }] });
 
+  /* ---------- 4.0: animaciones propias para ejercicios que antes mostraban la de otro, y más ejercicios de uso común ----------
+     Regla: cada ejercicio tiene SU animación. Si un nombre no tiene la suya queda «pendiente» (ver buscar): nunca se le presta otra. */
+  const MANC2 = [{ k: 'mancuerna', en: 'm0' }, { k: 'mancuerna', en: 'm1' }];
+  const COD_AD = [[1, -0.6], [1, -0.6]];
+  const ARRIBA = [[0.2, -1], [0.2, -1]];
+  const RIELES = [{ k: 'l', a: [40, 6], b: [40, 84], w: 1.8 }, { k: 'l', a: [80, 6], b: [80, 84], w: 1.8 }];
+  // Piernas y glúteos
+  add({ id: 'sentadilla-mancuernas', n: 'Sentadilla con mancuernas', g: 'piernas', m: ['cuadriceps', 'gluteos'], s: ['isquios'], al: ['sentadilla [con|] mancuernas'],
+    f: [{ ...PIE, p: pies(61, 57.5) }, { ...SENT_ABAJO, p: pies(61, 57.5), m: dos([62, 70.5]) }], eq: MANC2 });
+  add({ id: 'sentadilla-cajon', n: 'Sentadilla al cajón', g: 'piernas', m: ['cuadriceps', 'gluteos'], s: ['isquios'], al: ['box squat'],
+    esc: [{ k: 'r', x: 26, y: 68, w: 24, h: 16, rx: 1.4 }],
+    f: [{ ...PIE, p: pies(61, 57.5), m: dos(['h', 5, 3.5]), co: ABAJO }, { c: [44, 62.5], t: 66, p: pies(61, 57.5), m: dos(['h', 5, 3.5]), co: ABAJO }] });
+  add({ id: 'sentadilla-bosu', n: 'Sentadilla en bosu', g: 'piernas', m: ['cuadriceps', 'gluteos'], s: ['abdominales', 'pantorrillas'], al: ['sentadilla (en|sobre) bosu', 'bosu'], zoom: 0.92,
+    esc: [{ k: 'path', d: 'M38 84Q60 65 82 84Z', fill: true, cl: 'e4' }],
+    f: [{ c: [58, 38.6], t: 90, p: pies(61.5, 57.5, 73.3) }, { c: [48, 56.5], t: 54, p: pies(61.5, 57.5, 73.3), m: dos(['h', 23, 0]) }] });
+  const GUARDIA = dos(['h', 9, 9], ['h', 7, 10]);
+  add({ id: 'sentadilla-patada', n: 'Sentadilla con patada frontal', g: 'piernas', m: ['cuadriceps', 'gluteos'], s: ['abdominales'], al: ['sentadilla [con|+|y] patada (frontal)'], dur: 3.4,
+    f: [{ ...SENT_ABAJO, p: pies(61, 57.5), m: GUARDIA, co: ABAJO }, { ...PIE, p: pies(61, 57.5), m: GUARDIA, co: ABAJO }, { c: [56, 47], t: 97, p: [[85, 53], [57.5, AP]], pie: [-60, 0], m: GUARDIA, co: ABAJO }] });
+  add({ id: 'sentadilla-rodilla', n: 'Sentadilla con rodilla al pecho', g: 'piernas', m: ['cuadriceps', 'gluteos'], s: ['abdominales'], al: ['sentadilla [con|+|y] rodilla (al pecho)', 'sentadilla con elevacion de rodilla'], dur: 3.4,
+    f: [{ ...SENT_ABAJO, p: pies(61, 57.5), m: GUARDIA, co: ABAJO }, { ...PIE, p: pies(61, 57.5), m: GUARDIA, co: ABAJO }, { ...PIE, p: [[70, 61], [57.5, AP]], pie: [30, 0], m: GUARDIA, co: ABAJO }] });
+  add({ id: 'peso-muerto-kb', n: 'Peso muerto con kettlebell', g: 'gluteos', m: ['gluteos', 'isquios'], s: ['lumbares', 'cuadriceps', 'antebrazos'], al: ['peso muerto (con) kb', 'peso muerto (con) pesa rusa'], ico: 0,
+    f: [{ c: [46, 64], t: 38, cab: 10, p: pies(62, 56), m: dos([59, 74]) }, { ...PIE, p: pies(62, 56), m: dos([59.4, 48]) }], eq: [{ k: 'kb', en: 'mm' }] });
+  add({ id: 'rdl-mancuernas', n: 'RDL con mancuernas', g: 'gluteos', m: ['isquios', 'gluteos'], s: ['lumbares'], al: ['rdl (con) mancuernas', 'peso muerto (con) mancuernas'],
+    f: [{ ...PIE, p: pies(60, 57.5) }, { c: [44, 50], t: 25, cab: 12, p: pies(60, 57.5) }], eq: MANC2 });
+  add({ id: 'rdl-unilateral', n: 'RDL a una pierna', g: 'gluteos', m: ['isquios', 'gluteos'], s: ['lumbares', 'abdominales'], al: ['rdl unilateral', 'rdl (a) [una|1] pierna', 'peso muerto unilateral', 'peso muerto (a) [una|1] pierna'],
+    f: [{ ...PIE, p: [[59, AP], [57, AP]] }, { c: [50, 49], t: 12, cab: 14, p: [[16, 46], [57, AP]], pie: [100, 0] }], eq: MANC2 });
+  add({ id: 'estocadas-mancuernas', n: 'Estocadas con mancuernas', g: 'piernas', m: ['cuadriceps', 'gluteos'], s: ['isquios'], al: ['estocada (fija) (con) mancuernas', 'estocada fija', 'split squat', 'sentadilla dividida'],
+    f: [{ c: [56, 50], t: 90, p: [[70, AP], [40, 79.4]], pie: [0, 58], ko: [null, [0.3, 1]] }, { c: [56, 62], t: 90, p: [[70, AP], [40, 79.4]], pie: [0, 58], ko: [null, [0.3, 1]] }], eq: MANC2 });
+  add({ id: 'elevacion-talones', n: 'Elevación de talones de pie', g: 'piernas', m: ['pantorrillas'], al: ['elevacion (de) talones (de pie)', 'gemelos (de) pie', 'pantorrilla (de) pie', 'calf raise', 'puntas de pie'], exc: 'vuelta',
+    f: [{ ...PIE, p: pies(60, 58), pie: [0, 0] }, { c: [58, 43.5], t: 90, p: pies(60, 58, 78.2), pie: [38, 38] }], eq: MANC2 });
+  const SILLA_F = [{ k: 'r', x: 50, y: 30, w: 20, h: 34, rx: 3 }, { k: 'r', x: 47, y: 63.5, w: 26, h: 4 }];
+  const sentadaF = (id, n, al, mus, abre) => {
+    const cerr = { v: 'f', c: [60, 62], tl: 0.9, lm: 0.5, p: [[63.5, 80], [56.5, 80]], ko: [[1, -0.3], [-1, -0.3]], m: dos([71, 66], [49, 66]) };
+    const abie = { ...cerr, p: [[77, 80], [43, 80]] };
+    add({ id, n, g: abre ? 'gluteos' : 'piernas', m: mus, al, exc: 'vuelta', esc: SILLA_F, f: abre ? [cerr, abie] : [abie, cerr],
+      eq: [{ k: 'cojin', en: 'r0', o: [abre ? 3.4 : -3.4, 0], a: 90 }, { k: 'cojin', en: 'r1', o: [abre ? -3.4 : 3.4, 0], a: 90 }] });
+  };
+  sentadaF('aductores-maquina', 'Aductores en máquina', ['[aductores|aducciones] (en) maquina', 'maquina (de) aductores'], ['aductores'], false);
+  sentadaF('abductores-maquina', 'Abductores en máquina', ['[abductores|abducciones] (en) maquina', 'maquina (de) abductores'], ['abductores', 'gluteos'], true);
+  add({ id: 'patada-gluteo-banda', n: 'Patada de glúteo con banda', g: 'gluteos', m: ['gluteos'], s: ['isquios'], al: ['patada (de) [gluteo|gluteos] (con) banda', 'patadas (con) banda'],
+    f: [{ c: [54, 47], t: 74, p: [[57, 80], [56, AP]], m: dos([83.5, 44]) }, { c: [54, 47], t: 70, p: [[29, 62], [56, AP]], m: dos([83.5, 44]), ko: [[0, 1], null] }],
+    esc: PARED(86), lin: [{ k: 'banda', de: 'p1', a: 'p0', o: [0, -3], od: [0, -3] }] });
+  add({ id: 'good-morning', n: 'Buenos días con barra', g: 'gluteos', m: ['isquios', 'gluteos', 'lumbares'], al: ['buenos dias (con barra)', 'good morning'],
+    f: [{ ...PIE, p: pies(60, 57.5), m: dos(['h', -2, 1.6]), co: ABAJO }, { c: [46, 50], t: 32, cab: 14, p: pies(60, 57.5), m: dos(['h', -2, 1.6]), co: ABAJO }], eq: [{ k: 'barra', en: 'h', o: [-1.6, -2.6] }] });
+  // Espalda
+  dominada('dominadas', 'Dominadas', ['dominadas (libres|pronas|prono)', 'pull up (libre)'], false);
+  add({ id: 'chin-up', n: 'Chin up (dominada supina)', g: 'espalda', m: ['dorsales', 'biceps'], s: ['espalda'], al: ['chin up (libre)', 'dominadas [supinas|supino]', 'traccion supino'], zoom: 0.84, piso: false,
+    esc: [{ k: 'c', c: [64, 8.5], r: 2.2, cl: 'e2' }],
+    f: [{ c: [61, 56], t: 92, p: [[64, 89], [61, 90]], m: dos([64, 8.6]), co: [1, 1] }, { c: [59, 40], t: 94, p: [[64, 74], [61, 75]], m: dos([64, 8.6]), co: [1, 1] }] });
+  remoBarra('remo-smith', 'Remo en Smith', ['remo (en|con) smith', 'remo barra guiada'], { esc: RIELES });
+  add({ id: 'remo-invertido', n: 'Remo invertido en barra', g: 'espalda', m: ['dorsales', 'espalda'], s: ['biceps', 'abdominales'], al: ['remo invertido (en barra)', 'remo australiano', 'dominada australiana'],
+    esc: [{ k: 'l', a: [36, 84], b: [36, 30], w: 2 }, { k: 'l', a: [36, 37.2], b: [44.5, 37.2], w: 2 }, { k: 'c', c: [44.5, 37.2], r: 2.2, cl: 'e2' }],
+    f: [{ c: [66.1, 69.5], t: 160, p: [[99, 81.5], [98, 82]], pie: -70, m: dos([44.5, 37.2]) }, { c: [71.7, 59.6], t: 141, p: [[99, 81.5], [98, 82]], pie: -70, m: dos([44.5, 37.2]) }] });
+  add({ id: 'superman', n: 'Superman', g: 'espalda', m: ['lumbares', 'gluteos'], s: ['espalda', 'hombros'], al: ['superman', 'supermanes', 'extension lumbar (en el) suelo'], esc: COLCHONETA,
+    f: [{ c: [54, 78.6], t: 0, p: [[19.5, 79.6], [19.5, 80.2]], pie: 180, m: dos([101.4, 80]) }, { c: [54, 78.6], t: 10, cab: 12, cu: 16, p: [[21, 71], [21, 71.6]], pie: 180, m: dos([100, 67.5]) }] });
+  // Pecho
+  add({ id: 'press-banca-mancuernas', ico: 0, n: 'Press de banca con mancuernas', g: 'pecho', m: ['pecho'], s: ['triceps', 'hombros'], al: ['press (de) (banca|pecho) (plano) (con) mancuernas', 'press plano mancuernas'],
+    f: [{ ...BOCA_ARRIBA(58, 62), p: pies(72, 70), m: dos([36.5, 38]) }, { ...BOCA_ARRIBA(58, 62), p: pies(72, 70), m: dos([41.5, 56]), co: [[0, 1], [0, 1]] }], esc: banco(18, 65.4, 46), eq: MANC2 });
+  add({ id: 'aperturas-mancuernas', ico: 0, n: 'Aperturas con mancuernas', g: 'pecho', m: ['pecho'], s: ['hombros'], al: ['aperturas (de pecho) (con) mancuernas', 'aperturas (en) banco', 'flyes'], piso: false, exc: 'ida',
+    esc: [{ k: 'r', x: 34, y: 42.5, w: 48, h: 15, rx: 3 }],
+    f: [{ v: 'f', c: [72, 50], t: 180, lb: 0.4, p: [[106, 45.4], [106, 54.6]], pie: [0, 0], m: dos([50, 45.6], [50, 54.4]) }, { v: 'f', c: [72, 50], t: 180, p: [[106, 45.4], [106, 54.6]], pie: [0, 0], m: dos([50.5, 19.2], [50.5, 80.8]) }],
+    eq: [{ k: 'mancuernaF', en: 'm0', a: 90 }, { k: 'mancuernaF', en: 'm1', a: 90 }], vn: 'Vista desde arriba' });
+  add({ id: 'flexiones-rodillas', n: 'Flexiones con rodillas apoyadas', g: 'pecho', m: ['pecho', 'triceps'], s: ['hombros', 'abdominales'], al: ['flexiones (de brazos) (con|en) rodillas (apoyadas)', 'flexiones (de) rodillas', 'flexiones asistidas'],
+    f: [{ c: [50.7, 70.7], t: 35, p: [[22, 72], [22, 72.6]], ko: ABAJO, pie: 200, m: dos([70, 82]) }, { c: [53.8, 78.4], t: 8.4, p: [[22, 72], [22, 72.6]], ko: ABAJO, pie: 200, m: dos([70, 82]) }] });
+  add({ id: 'flexiones-inclinadas', n: 'Flexiones inclinadas', g: 'pecho', m: ['pecho', 'triceps'], s: ['hombros', 'abdominales'], al: ['flexiones inclinadas', 'flexiones (con) manos (en) [banco|cajon|step]', 'flexiones (en) [banco|cajon]'],
+    esc: banco(82, 65.4, 24),
+    f: [{ c: [52.3, 61.4], t: 36, p: pies(24, 24, 82), m: dos([89.8, 63.5]) }, { c: [56, 67.8], t: 24, p: pies(24, 24, 82), m: dos([89.8, 63.5]) }] });
+  add({ id: 'fondos-paralelas', n: 'Fondos en paralelas', g: 'pecho', m: ['pecho', 'triceps'], s: ['hombros'], al: ['fondos (en) paralelas', 'dips', 'fondos (de) pecho'], zoom: 0.88, ico: 0,
+    esc: [{ k: 'l', a: [42, 44], b: [42, 84], w: 2 }, { k: 'l', a: [76, 44], b: [76, 84], w: 2 }, { k: 'l', a: [38, 44], b: [80, 44], w: 2.4, cl: 'e2' }],
+    f: [{ c: [55, 40], t: 84, p: [['c', -8, 25], ['c', -9.5, 25.5]], m: dos([58, 42]) }, { c: [53, 52], t: 70, p: [['c', -8, 25], ['c', -9.5, 25.5]], m: dos([58, 42]) }] });
+  // Hombros y brazos
+  add({ id: 'press-militar-barra', n: 'Press militar con barra', g: 'hombros', m: ['hombros'], s: ['triceps', 'trapecio'], al: ['press militar (con) barra', 'press (de) [hombro|hombros] (con) barra', 'press estricto'], zoom: 0.84,
+    f: [{ ...PIE, p: pies(59, 56.5), m: dos(['h', 3.6, -0.6]), co: COD_AD }, { ...PIE, p: pies(59, 56.5), m: dos([59, -1]), co: COD_AD }], eq: [{ k: 'barra', en: 'mm' }] });
+  add({ id: 'press-hombros-sentado', n: 'Press de hombros sentado', g: 'hombros', m: ['hombros'], s: ['triceps', 'trapecio'], al: ['press (de) [hombro|hombros] sentado (con mancuernas)', 'press militar sentado'], zoom: 0.9,
+    esc: [{ k: 'r', x: 51, y: 30, w: 18, h: 34, rx: 3 }, { k: 'r', x: 47, y: 63.5, w: 26, h: 4 }],
+    f: [{ v: 'f', c: [60, 62], lm: 0.5, p: [[66.5, AP], [53.5, AP]], m: dos([73, 36], [47, 36]), co: [[0.6, 1], [-0.6, 1]] }, { v: 'f', c: [60, 62], lm: 0.5, p: [[66.5, AP], [53.5, AP]], m: dos([68, 14.2], [52, 14.2]), co: [[0.6, 1], [-0.6, 1]] }],
+    eq: [{ k: 'mancuernaF', en: 'm0' }, { k: 'mancuernaF', en: 'm1' }] });
+  add({ id: 'curl-martillo', n: 'Curl martillo', g: 'brazos', m: ['biceps', 'antebrazos'], al: ['curl (de) (biceps) martillo', 'martillo', 'biceps martillo'],
+    f: [{ ...PIE, m: dos([60, 48.5]), co: ABAJO }, { ...PIE, m: dos([64, 27]), co: ABAJO }], eq: [{ k: 'mancuernaF', en: 'm0', a: 90 }, { k: 'mancuernaF', en: 'm1', a: 90 }] });
+  add({ id: 'curl-polea', n: 'Curl de bíceps en polea', g: 'brazos', m: ['biceps'], s: ['antebrazos'], al: ['curl (de) (biceps) (en) polea', 'biceps (en) polea'],
+    f: [{ ...PIE, m: dos([60, 48.5]), co: ABAJO }, { ...PIE, m: dos([64, 27]), co: ABAJO }], esc: columna(88), lin: [{ k: 'cable', de: [88, 80], a: 'mm' }], eq: [{ k: 'agarre', en: 'mm' }] });
+  add({ id: 'triceps-sobre-cabeza', n: 'Extensión de tríceps sobre la cabeza', g: 'brazos', m: ['triceps'], al: ['extension (de) triceps (sobre|tras) (la) [cabeza|nuca]', 'triceps (sobre|tras) (la) [cabeza|nuca]', 'copa (de) triceps', 'triceps copa'], zoom: 0.84,
+    f: [{ ...PIE, m: dos([50, 19]), co: ARRIBA }, { ...PIE, m: dos([60, -0.8]), co: ARRIBA }], eq: [{ k: 'mancuerna', en: 'mm' }] });
+  add({ id: 'patada-triceps', n: 'Patada de tríceps', g: 'brazos', m: ['triceps'], al: ['patada (de) triceps', 'kickback', 'triceps patada'],
+    esc: banco(72, 62, 30),
+    f: [{ c: [48, 50], t: 22, cab: 10, p: pies(58, 52), m: dos([57.2, 58.3], [84, 60.3]), co: [[-1, -0.6], null] }, { c: [48, 50], t: 22, cab: 10, p: pies(58, 52), m: dos([46.2, 50.8], [84, 60.3]), co: [[-1, -0.6], null] }], eq: [{ k: 'mancuerna', en: 'm0' }] });
+  add({ id: 'press-frances', ico: 0, n: 'Press francés', g: 'brazos', m: ['triceps'], al: ['press frances', 'rompecraneos', 'extension (de) triceps acostado'], exc: 'vuelta',
+    f: [{ ...BOCA_ARRIBA(58, 62), p: pies(72, 70), m: dos([25.5, 54]), co: [[0, -1], [0, -1]] }, { ...BOCA_ARRIBA(58, 62), p: pies(72, 70), m: dos([35.3, 37.2]), co: [[0, -1], [0, -1]] }],
+    esc: banco(18, 65.4, 46), eq: [{ k: 'discoS', en: 'mm' }] });
+  // Core
+  add({ id: 'bird-dog', n: 'Bird dog', g: 'core', m: ['lumbares', 'abdominales'], s: ['gluteos', 'hombros'], al: ['bird dog', 'perro (de) caza', 'cuadrupedia brazo (y) pierna', 'superman (en) cuadrupedia'],
+    f: [{ ...CUADRUPEDIA }, { ...CUADRUPEDIA, cab: 8, p: [[7.6, 61], [23.5, 81.2]], ko: [[-1, 0.2], [0, 1]], pie: [180, null], m: dos([88.8, 55.5], [64, 82]) }] });
+  add({ id: 'bicicleta-abdominal', n: 'Bicicleta abdominal', g: 'core', m: ['oblicuos', 'abdominales'], al: ['bicicleta abdominal', 'abdominal bicicleta', 'crunch bicicleta', 'bicicletas'], esc: COLCHONETA, dur: 2.2,
+    f: [{ c: [58, 78.6], t: 162, cu: -24, p: [[70, 62], [93, 71]], m: dos(['k', 0, 3]), co: [[-0.2, -1], [-0.2, -1]] }, { c: [58, 78.6], t: 162, cu: -24, p: [[93, 71], [70, 62]], m: dos(['k', 0, 3]), co: [[-0.2, -1], [-0.2, -1]] }] });
+  add({ id: 'elevacion-piernas-colgado', n: 'Elevación de piernas colgado', g: 'core', m: ['abdominales'], s: ['oblicuos', 'antebrazos'], al: ['elevacion (de) piernas [colgado|colgada] (en barra)', 'piernas rectas colgado'], zoom: 0.84, piso: false,
+    esc: [{ k: 'c', c: [60, 8.5], r: 2.2, cl: 'e2' }],
+    f: [{ c: [58, 56], t: 92, p: [[58, 90], [56, 90]], m: dos([60, 8.6]) }, { c: [56, 55], t: 100, p: [[90, 57], [89, 58]], m: dos([60, 8.6]) }] });
+  add({ id: 'sit-up', n: 'Abdominal completo (sit-up)', g: 'core', m: ['abdominales'], s: ['cuadriceps'], al: ['sit up', 'abdominal completo', 'abdominales completos', 'abdominales'], esc: COLCHONETA,
+    f: [{ ...BOCA_ARRIBA(60, 79), p: pies(76, 74), m: dos(['k', 0, 3]), co: [[-0.2, -1], [-0.2, -1]] }, { c: [60, 79], t: 106, cu: -22, p: pies(76, 74), m: dos(['k', 1, 3]), co: [[-0.2, -1], [-0.2, -1]] }] });
+  add({ id: 'plancha-pierna', n: 'Plancha con elevación de pierna', g: 'core', m: ['abdominales', 'gluteos'], s: ['hombros'], al: ['plancha (con) elevacion (de) pierna', 'plancha (con) pierna (arriba|elevada)', 'plancha (a) [una|1] pierna'],
+    f: [{ ...PLANCHA_ANTEB }, { ...PLANCHA_ANTEB, p: [[22.6, 66], [22, 82]] }] });
+  // Cardio
+  const BRAZOS_A = dos(['h', -6, 18], ['h', 10, 10]); const BRAZOS_B = dos(['h', 10, 10], ['h', -6, 18]);
+  add({ id: 'talones-gluteo', n: 'Talones al glúteo', g: 'cardio', m: ['isquios'], s: ['pantorrillas', 'cuadriceps'], al: ['talones (al|a) [gluteo|gluteos|cola]', 'taloneo', 'butt kicks'], ...C,
+    f: [{ c: [58, 46.5], t: 93, p: [[50, 61], [57, AP]], pie: [140, 40], ko: [[0.3, 1], null], m: BRAZOS_A }, { c: [58, 46.5], t: 93, p: [[57, AP], [50, 61]], pie: [40, 140], ko: [null, [0.3, 1]], m: BRAZOS_B }] });
+  add({ id: 'trote', n: 'Trote en el lugar', g: 'cardio', m: ['cuadriceps'], s: ['pantorrillas'], al: ['trote (en el lugar|suave)', 'trotar (en el lugar)', 'correr en el lugar'], ...C,
+    f: [{ c: [58, 46.5], t: 93, p: [[65, 71], [56, AP]], pie: [25, 45], m: BRAZOS_A }, { c: [58, 46.5], t: 93, p: [[56, AP], [65, 71]], pie: [45, 25], m: BRAZOS_B }] });
+  add({ id: 'caminadora', n: 'Trotadora', g: 'cardio', m: ['cuadriceps', 'isquios'], s: ['pantorrillas', 'gluteos'], al: ['trotadora', 'caminadora', 'cinta (de correr)', 'treadmill'], ...C,
+    esc: [{ k: 'r', x: 20, y: 80, w: 74, h: 4, rx: 2 }, { k: 'l', a: [88, 80], b: [94, 42], w: 2.2 }, { k: 'l', a: [94, 42], b: [84, 42], w: 2.2 }],
+    f: [{ c: [56, 43], t: 96, p: [[72, 72], [43, 73]], pie: [10, 70], m: BRAZOS_A }, { c: [56, 43], t: 96, p: [[43, 73], [72, 72]], pie: [70, 10], m: BRAZOS_B }] });
+  add({ id: 'salto-cajon', n: 'Salto al cajón', g: 'cardio', m: ['cuadriceps', 'gluteos'], s: ['pantorrillas'], al: ['salto (al|a) [cajon|banco]', 'saltos (al|a) [cajon|banco]', 'box jump'], ...C, zoom: 0.8, ciclo: true, dur: 4.6,
+    esc: [{ k: 'r', x: 66, y: 66, w: 26, h: 18, rx: 1.4 }],
+    f: [{ c: [44, 47], t: 90, p: pies(46, 43) }, { c: [38, 60], t: 55, p: pies(46, 43), m: dos(['h', -8, 18]) }, { c: [56, 36], t: 80, p: [[66, 58], [63, 59]], m: dos(['h', 14, -12]) },
+      { c: [70, 44], t: 65, p: [[80, 63.7], [76.5, 63.7]], m: dos(['h', 16, 4]) }, { c: [76, 29], t: 90, p: [[78, 63.7], [75, 63.7]] }, { c: [60, 40], t: 88, p: [[62, 66], [56, 74]] }] });
+  // Calentamiento y estiramientos
+  add({ id: 'balanceo-pierna', n: 'Balanceo de pierna', g: 'movilidad', m: ['gluteos', 'isquios'], s: ['cuadriceps'], al: ['balanceo (de) [pierna|piernas]', 'pendulo (de) pierna', 'leg swing'], dur: 2.6,
+    f: [{ c: [58, 47], t: 89, p: [[78, 74.5], [57, AP]], pie: [-25, 0], m: dos(['c', 4, -3]), co: [[-1, -0.2], [-1, -0.2]] }, { c: [58, 47], t: 92, p: [[39, 75.5], [57, AP]], pie: [35, 0], m: dos(['c', 4, -3]), co: [[-1, -0.2], [-1, -0.2]] }] });
+  add({ id: 'rotacion-tronco', n: 'Rotación de tronco de pie', g: 'movilidad', m: ['oblicuos'], s: ['lumbares', 'hombros'], al: ['rotacion (de) tronco (de pie)', 'giros (de) tronco', 'giro (de) cintura'], dur: 3,
+    f: [{ ...FRENTE, t: 86, m: dos([88, 36], [70, 38]), co: [[0, 1], [0, 1]] }, { ...FRENTE, t: 94, m: dos([50, 38], [32, 36]), co: [[0, 1], [0, 1]] }] });
+  add({ id: 'cuello-lateral', n: 'Estiramiento lateral de cuello', ...E, m: ['trapecio'], al: ['estiramiento (lateral) (de) cuello', 'elongacion (de) cuello', 'cuello lateral'],
+    f: [{ ...FRENTE, m: dos([66.5, 50], [53.5, 50]) }, { ...FRENTE, cab: -28, m: dos([58.5, 13.5], [53.5, 50]), co: [[1, -1], null] }] });
   // Normalizar para buscar por nombre (sin tildes ni mayúsculas).
   const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9/ -]+/g, ' ').replace(/\s+/g, ' ').trim();
-  L.forEach((e) => { e.al = [...new Set([norm(e.n), ...(e.al || []).map(norm)])].sort((a, b) => b.length - a.length); });
-  // Busca el ejercicio de la biblioteca que corresponde a un nombre de su planilla (usa la primera parte de «A + B»).
-  function buscar(nombre, lista = L) {
-    const partes = String(nombre || '').split(/\s\+\s|\s-\s|\+/).map(norm).filter(Boolean);
-    for (const p of partes) {
-      let mejor = null; let largo = 0;
-      for (const e of lista) for (const a of e.al || [norm(e.n)]) {
-        if (a.length > largo && (p === a || p.startsWith(a + ' ') || p.includes(' ' + a + ' ') || p.endsWith(' ' + a) || (a.length > 5 && p.includes(a)))) { mejor = e; largo = a.length; }
-      }
-      if (mejor) return mejor;
+  /* ---------- 4.0: vínculo estricto ejercicio ↔ animación ----------
+     Cada ejercicio tiene un identificador único (id) y su propia animación. Un nombre escrito por la entrenadora se
+     conecta con un ejercicio SOLO si significa lo mismo (mismas palabras con sentido: movimiento, implemento y
+     variante). Si sobra o falta una palabra que cambia el ejercicio («con mancuernas», «en Smith», «unilateral»…)
+     no hay conexión: queda «pendiente» y ella elige la animación. Nunca se presta la animación de otro ejercicio. */
+  const QUITAR = { 'remo-barra-supino': ['remo barra invertido'], 'bicicleta-abdominal': ['bicicletas'],
+    'sentadilla-smith': ['smith', 'barra guiada'], 'goblet-squat': ['sentadilla pulso', 'sentadilla cajon con kb'],
+    'sentadilla-libre': ['sentadilla con patada', 'sentadilla con rodilla al pecho', 'sentadilla bosu', 'sentadilla en bosu'],
+    'prensa-45': ['prensa vertical'], 'estocadas-desplazamiento': ['estocadas fijas', 'estocadas desde step'],
+    'puente-gluteo': ['gluteband', 'glute band'], 'patada-gluteo-polea': ['patadas banda', 'patada abductores'], abductores: ['abducciones maquina'],
+    rdl: ['rdl unilateral'], 'peso-muerto': ['peso muerto kb'], 'dominadas-asistidas': ['dominadas', 'chin up libres'],
+    'chin-up-negativo': ['chin up', 'negativo', 'remo negativo'], 'remo-barra-prono': ['remo smith'], 'trx-traccion': ['remo invertido'],
+    'press-pecho-maquina': ['press pecho hombro banca'], aperturas: ['aperturas mancuernas'], 'press-militar': ['press hombro sentado'],
+    'press-landmine': ['sentadilla press unilateral', 'press hombro barra'], 'curl-21': ['biceps 15'], 'toque-hombros': ['flexion toque de hombros'],
+    'crunch-banca': ['crunch maquina'], oso: ['traslado mancuerna en oso'], burpee: ['tortuga-delfin burpee'], 'saltos-laterales': ['saltos a 1 pie'],
+    escaladora: ['escaladores step'], 'gato-camello': ['movilidad'], 'apertura-toracica': ['tabla con apertura', 'apertura pecho'], 'rotacion-columna': ['giro'],
+    'estocada-rotacion': ['movilidad dinamica'], 'estiramiento-isquios': ['isquios'], 'rotacion-cadera': ['movilidad de cadera'],
+  };
+  // Más formas de escribir el MISMO ejercicio: (a|b) opcional, [a|b] una de las dos.
+  const MAS = {
+    'sentadilla-barra': ['sentadilla (trasera) (con) barra (libre|alta)', 'sentadilla trasera'], 'sentadilla-frontal': ['sentadilla frontal (con barra)'],
+    'sentadilla-smith': ['sentadilla (profunda) (en) [smith|multipower]', 'sentadilla (en) barra guiada'],
+    'goblet-squat': ['sentadilla goblet (con) (kb)', 'sentadilla copa', 'sentadilla (con) kb (al pecho)', 'sentadilla (con) mancuerna al pecho'],
+    'sentadilla-press': ['sentadilla [con|y|mas] press (de) (hombro|militar)'], 'sentadilla-libre': ['sentadilla', 'sentadilla [sin peso|peso corporal|al aire]', 'air squat'],
+    'hack-squat': ['sentadilla hack'], 'prensa-45': ['prensa (de piernas) (inclinada)', 'leg press'], 'prensa-horizontal': ['prensa sentada'],
+    'leg-extension': ['extension (de) [pierna|cuadriceps|rodilla] (en maquina)', 'sillon (de) cuadriceps', 'cuadriceps (en) maquina'],
+    'leg-curl-acostada': ['legcurl [acostada|acostado|tumbado]', 'curl femoral (acostada|acostado|tumbado)', 'curl (de) isquios (acostado)'],
+    'leg-curl-sentada': ['legcurl [sentada|sentado]', 'curl femoral [sentada|sentado]', 'femoral sentado', 'isquios (en) maquina'],
+    'estocada-bulgara': ['[sentadilla|estocada] bulgara (con) (mancuernas)'],
+    'estocadas-desplazamiento': ['estocada', 'estocada (en|con) [desplazamiento|caminata]', 'estocada [caminando|adelante|frontal|alterna|delantera]'],
+    'estocada-atras': ['estocada [atras|trasera|reversa|inversa|posterior] (alterna)'], 'estocada-cruzada': ['estocada [curtsy|reverencia]'],
+    'subida-cajon': ['subida (unilateral|alterna) (al|a) [cajon|banco]', 'subo (y) bajo cajon'],
+    'silla-isometrica': ['silla (en) pared', 'sentadilla isometrica (en) (pared)', 'wall sit', 'sentadilla (en) pared'],
+    aductores: ['[aductor|aductores] (en) polea', 'aduccion (de cadera) (en) polea'], abductores: ['abduccion (de) (cadera) (lateral) (con) (banda) (de pie)'],
+    soleo: ['soleo sentado', 'pantorrilla [sentado|sentada|maquina]', 'gemelo [sentado|maquina]'],
+    'hip-thrust-barra': ['hipthrust (con|en) (barra)'], 'hip-thrust-maquina': ['hipthrust (en) maquina'],
+    'puente-gluteo': ['puente (de) (gluteo) (con) (banda)', 'elevacion (de) [cadera|pelvis]', 'glute bridge'],
+    'patada-gluteo-polea': ['patada (de) gluteo (en) (polea)', 'patada trasera (en) (polea)'],
+    'patada-burro': ['patada (de) gluteo (en) [cuadrupedia|suelo]', 'donkey kick'], almejas: ['almeja (con) banda', 'clamshell'],
+    'pasos-laterales': ['paso lateral (con) (banda)', '[desplazamiento|caminata] lateral (con) banda', 'monster walk'],
+    rdl: ['rdl (con) barra', 'pesomuerto piernas rigidas'], 'peso-muerto': ['pesomuerto (convencional) (con) (barra)'],
+    'sentadilla-sumo': ['sentadilla [sumo|zumo] (con) (kb)'], 'swing-kb': ['swing (ruso) (con|de) (kb)', 'balanceo (con|de) kb'],
+    'pull-down-abierto': ['pulldown (abierto|ancho|prono) (al pecho)', 'pulldown (en) polea (alta)'], 'pull-down-cerrado': ['pulldown [cerrado|estrecho|supino]'],
+    'pull-down-neutro': ['pulldown [neutro|triangulo]'], 'dominadas-banda': ['dominada (asistida) (con) banda'], 'dominadas-asistidas': ['dominada [asistida|maquina] (en) (maquina)'],
+    'chin-up-negativo': ['chinup [negativo|negativa]', 'dominada [negativa|negativo]', 'negativa (de) dominada'],
+    'remo-barra-prono': ['remo (con) barra (prono|inclinado|libre)', 'remo inclinado (con) (barra)'], 'remo-barra-supino': ['remo (con) barra supino'],
+    'remo-t': ['remo (en) (barra) t'], 'remo-mancuerna': ['remo (unilateral) (a) (una|1) (mano) (con) mancuerna (unilateral)', 'remo serrucho', 'serrucho'],
+    'remo-polea': ['remo (sentado|horizontal|bajo) (en) polea (baja)', 'remo sentado (en) (polea)'], 'remo-gorila': ['remo gorila (con) (kb)'],
+    'trx-traccion': ['remo (en) trx', 'trx [traccion|remo]', 'traccion (en) trx'], hiperextensiones: ['hiperextension (lumbar) (en) (banco)', 'extension lumbar (en) banco'],
+    'press-banca': ['press (de) [banca|banco] (plano|plana) (con) (barra)', 'bench press', 'press plano (con) (barra)'],
+    'press-pecho-maquina': ['press (de) pecho (en) (maquina)', 'chest press'], flexiones: ['flexion (de) [brazo|codo|pecho]', 'flexion (en) (el) suelo'],
+    aperturas: ['apertura (de) (pecho) (en) (maquina)', 'pec deck', 'contractora'],
+    'fondos-triceps': ['fondo (de) (triceps) (en) [banco|banca|silla]', 'dips (en) banco'],
+    'press-militar': ['press militar (con) (mancuernas) (de pie)', 'press (de) [hombro|hombros] (con) (mancuernas) (de pie)'],
+    'shoulder-press': ['shoulder press (en) (maquina)', 'press (de) hombro (en) maquina'], 'press-hombro-inclinado': ['press inclinado (con) mancuernas', 'press (de) pecho inclinado (con) (mancuernas)'],
+    'press-landmine': ['press landmine', 'landmine press'], 'vuelos-posteriores': ['elevacion posterior', 'pajaro', 'posterior (de) hombro', 'deltoides posterior'],
+    'vuelos-laterales': ['elevacion lateral (con) (mancuernas)'], 'elevacion-frontal': ['elevacion frontal (con) (mancuernas)'], 'remo-menton': ['remo (al) menton (con) (kb)'],
+    'curl-barra': ['curl (de) (biceps) (con) barra', 'biceps (con) barra'], 'curl-mancuernas': ['curl (de) (biceps) (con) mancuernas (alterno)', 'biceps (con) mancuernas', 'curl'],
+    'curl-21': ['curl 21'], 'triceps-polea': ['triceps', 'triceps (en) polea (alta)', 'extension (de) triceps (en) polea', 'pulldown (de) triceps', 'pushdown', 'triceps (con) cuerda'],
+    'bicho-muerto': ['deadbug'], plancha: ['plancha [abdominal|isometrica|baja]', 'plancha (de|en) antebrazos'], 'plancha-lateral': ['plancha lateral isometrica'],
+    'plancha-dinamica': ['subo (y) bajo (en) plancha', 'plancha sube (y) baja'], 'plancha-spider': ['plancha arana', 'spiderman'],
+    'toque-hombros': ['plancha (con) toque (de) hombro', 'toque (de) hombro (en plancha)'], 'tabla-abro-cierro': ['plancha abro cierro', 'plank jack'],
+    'tabla-a-carpa': ['plancha (a) carpa', 'pike'], 'rueda-abdominal': ['ab wheel', 'rollout'], 'crunch-banca': ['crunch (abdominal) (en) (suelo)', 'abdominal corto'],
+    'rap-colgado': ['rodilla (al) pecho [colgado|colgada]', 'elevacion (de) rodilla [colgado|colgada]'], 'rap-suelo': ['rodilla (al) pecho (en) [suelo|banco|sentado]'],
+    'elevacion-piernas': ['elevacion (de) pierna [acostado|acostada|recta]', 'elevacion (de) pierna (en) suelo', 'leg raise'],
+    twist: ['twist (ruso) (con) (mancuerna)', 'giro ruso (con) (mancuerna)', 'russian twist'], lenador: ['lenador (en) polea'], bote: ['hollow [body|hold]', 'canoa'],
+    'caminata-manos': ['inchworm'], oso: ['caminata (de) oso'], granjero: ['paseo (del) granjero', 'farmer (walk)'], escaladores: ['mountain climber'],
+    skipping: ['skipping alto', 'rodilla [arriba|alta]', 'high knees'], 'sentadilla-salto': ['salto (con) sentadilla', 'jump squat'], 'speed-skate': ['patinador'],
+    'balon-suelo': ['slam ball', 'azote (de) balon'], arranque: ['snatch'], remadora: ['remo ergometro'], escaladora: ['stair [master|climber]'], bicicleta: ['bicicleta [estatica|fija]'],
+    'gato-camello': ['gato vaca', 'cat cow'], 'apertura-toracica': ['rotacion toracica (en) (cuadrupedia)'], 'rotacion-columna': ['rotacion (de) columna sentado'],
+    'sentadilla-profunda': ['cuclilla (asistida)'], 'sentadilla-cajon': ['sentadilla (en|al|a) [banco|cajon|silla]'], 'flexiones-inclinadas': ['flexion (en) [altura|mesa]', 'flexion (con) manos (en) [altura|mesa]', 'flexion inclinada (en) [mesa|banco]'],
+  };
+  const FRASES = [[/\bc\//g, 'con '], [/-/g, ' '], [/\b(lat )?pull ?downs?\b|\bjalon(es)?( al pecho)?\b/g, 'pulldown'], [/\bhips? ?th?rusts?\b|\bht\b/g, 'hipthrust'],
+    [/\bpeso muerto rumano\b|\brumano\b/g, 'rdl'], [/\bpeso muerto\b|\bdead ?lift\b/g, 'pesomuerto'], [/\bpush ?ups?\b|\blagartijas?\b/g, 'flexion'],
+    [/\bpull ?ups?\b/g, 'dominada'], [/\bchin ?ups?\b/g, 'chinup'], [/\bsit ?ups?\b/g, 'situp'], [/\bstep ?ups?\b/g, 'subida cajon'], [/\bface ?pulls?\b/g, 'facepull'],
+    [/\bl ?sit[e]?\b/g, 'lsit'], [/\bv ?(sit[e]?|up)\b/g, 'vsit'], [/\bjumping jacks?\b/g, 'jumpingjack'], [/\bwall ?[bv]all\b/g, 'wallball'],
+    [/\bkettle ?bells?\b|\bpesas? rusas?\b/g, 'kb'], [/\bglute ?band\b|\bmini ?bands?\b/g, 'banda'], [/\bleg ?ext(ension)?\b/g, 'legextension'], [/\bleg ?curl\b/g, 'legcurl'],
+    [/\bgoblet( squat)?\b/g, 'goblet'], [/\bdead ?bug\b/g, 'deadbug'], [/\bbird ?dog\b/g, 'birddog'], [/\bbox\b/g, 'cajon'], [/\bde pie\b/g, 'depie']];
+  const SIN = { pesa: 'mancuerna', db: 'mancuerna', cable: 'polea', elastico: 'banda', elastica: 'banda', liga: 'banda', zancada: 'estocada', lunge: 'estocada', squat: 'sentadilla',
+    tabla: 'plancha', plank: 'plancha', abs: 'abdominal', vuelo: 'elevacion', glute: 'gluteo', step: 'cajon', abduccion: 'abductor', aduccion: 'aductor', hombros: 'hombro', bicep: 'biceps', tricep: 'triceps', pres: 'press' };
+  const NEUTRAS = new Set('de del la el los las lo con en a al y o e por para x kg k lb seg s min m rep repeticion serie cada lado c u derecha izquierda der izq lento lenta controlado controlada pausa pesado pesada liviano liviana carga peso alterno alterna alternado alternada alternando ambo amba piramide tempo max maxima amrap rm rir obs'.split(' '));
+  const CONSERVA = new Set(['21']);
+  const singular = (w) => (w.length > 3 ? w.replace(/([^aeiou])es$/, '$1').replace(/s$/, '') : w);
+  function palabras(nombre) {
+    let t = norm(nombre); for (const [re, por] of FRASES) t = t.replace(re, por);
+    const out = [];
+    for (let w of t.split(' ')) {
+      if (!w) continue;
+      if (/^\d+([.,]\d+)?(x\d+)?(kg|k|s|seg|min|m|lb|cm)?$/.test(w) || /^x\d+$/.test(w)) { if (!CONSERVA.has(w)) continue; }
+      w = singular(w); w = SIN[w] || w;
+      if (NEUTRAS.has(w)) continue;
+      if (!out.includes(w)) out.push(w);
     }
+    return out;
+  }
+  const clave = (nombre) => palabras(nombre).sort().join(' ');
+  function expandir(pat) {
+    let outs = ['']; const re = /\(([^)]*)\)|\[([^\]]*)\]|([^\s()[\]]+)/g; let m;
+    while ((m = re.exec(pat))) {
+      const ops = m[1] != null ? ['', ...m[1].split('|')] : m[2] != null ? m[2].split('|') : [m[3]];
+      outs = outs.flatMap((o) => ops.map((x) => (o + ' ' + x).trim()));
+    }
+    return outs;
+  }
+  const INDICE = new Map(); const CHOQUES = [];
+  L.forEach((e) => {
+    const quitar = new Set((QUITAR[e.id] || []).map(norm));
+    const formas = [e.n, ...(e.al || []).filter((a) => !quitar.has(norm(a))), ...(MAS[e.id] || [])].flatMap(expandir);
+    e.al = [...new Set(formas.map(norm))].sort((a, b) => b.length - a.length);
+    e._tk = new Set();
+    for (const f of formas) {
+      const k = clave(f); if (!k) continue;
+      k.split(' ').forEach((w) => e._tk.add(w));
+      const ya = INDICE.get(k);
+      if (!ya) INDICE.set(k, e); else if (ya !== e) CHOQUES.push([k, ya.id, e.id]);
+    }
+  });
+  // Ejercicio de la biblioteca que corresponde EXACTAMENTE a un nombre (o null: queda pendiente de asignar).
+  function buscar(nombre) {
+    const todo = clave(nombre); if (todo && INDICE.has(todo)) return INDICE.get(todo);
+    for (const p of String(nombre || '').split(/\s\+\s|\s-\s|\+/)) { const k = clave(p); if (k) return INDICE.get(k) || null; }
     return null;
   }
-  return { lista: L, G, MUS, buscar, norm };
+  // Ejercicios que se parecen por el nombre: solo para SUGERIR al asignar una animación a mano (nunca se asignan solos).
+  function parecidos(nombre, n = 8) {
+    const pal = palabras(nombre); if (!pal.length) return [];
+    return L.map((e) => [e, pal.filter((w) => e._tk.has(w)).length / Math.sqrt(pal.length)]).filter(([, p]) => p > 0).sort((a, b) => b[1] - a[1]).slice(0, n).map(([e]) => e);
+  }
+  return { lista: L, G, MUS, buscar, norm, clave, palabras, parecidos, choques: CHOQUES };
 })();
 if (typeof module !== 'undefined') module.exports = EJ;
 
@@ -3660,7 +4045,7 @@ let RECIEN = null;
 function linkAlumno(a) { return NUBE && a.token ? NUBE.linkAlumno(a.token) : ''; }
 function urlWsp(a) {
   const nom = String(a.nombre || '').trim().split(/\s+/)[0];
-  const txt = `Hola ${nom} 👋\nTe dejo tu rutina de entrenamiento:\n${linkAlumno(a)}\n\nÁbrela en el celular y marca cada ejercicio cuando lo termines 💪\nFernanda Rojas · Entrenamiento Personal`;
+  const txt = `Hola ${nom} 👋\nTe dejo tu rutina de entrenamiento:\n${linkAlumno(a)}\n\nÁbrela en el celular y marca cada ejercicio cuando lo termines 💪\nFernanda Rojas · Coach`;
   return `https://wa.me/${String(a.wsp).replace(/\D/g, '')}?text=${encodeURIComponent(txt)}`;
 }
 function botonWsp(a) {
@@ -4165,15 +4550,12 @@ function hojaPrevia(p, multi, on) {
     <button type="button" class="btn-ghost" data-act="cerrarPrevia">Cerrar</button></div>`;
 }
 const hojaNuevo = () => `<div class="hoja-fondo" data-act="selNuevoCerrar"></div><div class="hoja" role="dialog"><div class="hoja-t">«${esc(SEL_NUEVO)}»: ¿de qué grupo es?</div>${chipsGrupos('', 'selCrear', false)}<button type="button" class="btn-ghost" data-act="selNuevoCerrar">Cancelar</button></div>`;
-// Monitos que se parecen al nombre de un ejercicio nuevo: el que reconoce la biblioteca primero y después los que comparten palabras.
+// Monitos que se parecen al nombre de un ejercicio: solo para sugerir al elegirlo a mano. Nunca se asignan solos:
+// cada ejercicio muestra su propia animación o queda pendiente («Elegir monito»).
 function sugeridosMonito(nombre) {
-  const q = EJ.norm(nombre); if (!q) return [];
-  const pal = q.split(' ').filter((w) => w.length > 2 && !['con', 'del', 'las', 'los', 'una', 'para', 'por'].includes(w));
-  const pre = biblio().filter((x) => !x.propio && x.fig);
-  const primero = EJ.buscar(nombre);
-  const puntaje = (x) => pal.reduce((n, w) => n + ((x.fig.al || []).some((a) => a.split(' ').includes(w)) ? 2 : EJ.norm(x.n).includes(w) ? 1 : 0), 0);
-  const L = pre.map((x) => [x, (primero && x.id === primero.id ? 100 : 0) + puntaje(x)]).filter(([, p]) => p > 0).sort((a, b) => b[1] - a[1]).slice(0, 8);
-  return L.map(([x]) => x);
+  if (!EJ.norm(nombre)) return [];
+  biblio();
+  return EJ.parecidos(nombre, 8).map((f) => BIB_ID.get(f.id)).filter((x) => x && !x.propio && x.fig);
 }
 function vistaSelector(r) {
   if (!BORRADOR || BORRADOR.ruta !== r.borrador) {
@@ -4187,7 +4569,8 @@ function vistaSelector(r) {
   const en = new Set(multi ? L.map((x) => x.lib).filter(Boolean) : esMon && B.d.base ? [B.d.base] : []);
   const volver = B.col === 'vincular' ? B.padre : '#' + B.ruta;
   const lista = esMon ? biblio().filter((x) => !x.propio && x.fig) : biblio();
-  const rec = esMon ? sugeridosMonito(B.d.n) : recientes().map((id) => BIB_ID.get(id) || (biblio(), BIB_ID.get(id))).filter(Boolean).slice(0, 12);
+  const esVin = B.sel.tipo === 'vincular';
+  const rec = esMon ? sugeridosMonito(B.d.n) : esVin && sugeridosMonito(B.sel.nombre).length ? sugeridosMonito(B.sel.nombre) : recientes().map((id) => BIB_ID.get(id) || (biblio(), BIB_ID.get(id))).filter(Boolean).slice(0, 12);
   const p = PREVIA && ejPorId(PREVIA);
   const fila = B.sel.tipo === 'anotar' ? (B.d.ej || [])[B.sel.i] : null;
   const sub = B.sel.tipo === 'vincular' ? `<p class="intro">Elige el ejercicio que corresponde a «${esc(B.sel.nombre)}». Queda conectado en todas las clases, rutinas y el link del alumno.</p>`
@@ -4198,7 +4581,7 @@ function vistaSelector(r) {
     <label class="buscar"><span class="vh">Buscar ejercicio</span><input type="search" data-filtro="elegir" placeholder="Buscar por nombre o músculo" value="${esc(FILTRO_E.q)}" autocomplete="off" autocorrect="off" enterkeyhint="search"></label>
     ${chipsGrupos(FILTRO_E.g, 'filtroGrupoE')}
     <div class="fila-mover">${botonMover()}</div>
-    ${rec.length ? `<div class="recientes" data-recientes><div class="rec-t">${esMon ? 'Se parecen por el nombre' : 'Usados hace poco'}</div><ul class="ej-fila sel">${rec.map((x) => tarjetaEj(x, true, en.has(x.id))).join('')}</ul></div>` : ''}
+    ${rec.length ? `<div class="recientes" data-recientes><div class="rec-t">${esMon || (esVin && sugeridosMonito(B.sel.nombre).length) ? 'Se parecen por el nombre' : 'Usados hace poco'}</div><ul class="ej-fila sel">${rec.map((x) => tarjetaEj(x, true, en.has(x.id))).join('')}</ul></div>` : ''}
     <p class="intro cuenta" data-cuenta></p>
     <ul class="ej-grid sel" data-grid>${lista.map((x) => tarjetaEj(x, true, en.has(x.id))).join('')}</ul>
     <div class="vacio-caja oculto" data-sin><p>No encontré «<span data-q></span>» ${esMon ? 'entre los monitos. Prueba con otra palabra (por ejemplo «sentadilla» o «remo»).' : 'en tu biblioteca.'}</p>${puedeEditar() && !esMon ? '<button type="button" class="btn" data-act="selNuevo"><span>Agregar «<span data-q></span>» a mi biblioteca</span></button>' : ''}</div>
