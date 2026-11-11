@@ -1523,7 +1523,60 @@ const EJ = (() => {
     const pal = palabras(nombre); if (!pal.length) return [];
     return L.map((e) => [e, pal.filter((w) => e._tk.has(w)).length / Math.sqrt(pal.length)]).filter(([, p]) => p > 0).sort((a, b) => b[1] - a[1]).slice(0, n).map(([e]) => e);
   }
-  return { lista: L, G, MUS, buscar, norm, clave, palabras, parecidos, choques: CHOQUES };
+  /* ---------- animaciones propias (creadas para un ejercicio nuevo de la entrenadora) ----------
+     Llegan como datos (posturas clave) y se guardan con el ejercicio. Antes de dibujarlas se limpian: solo números
+     dentro del lienzo, implementos conocidos y nada de texto libre. Así ningún dato raro llega al dibujo. */
+  const num = (v, a, b) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : null);
+  const par = (v) => (Array.isArray(v) && v.length === 2 && num(v[0], -40, 160) != null && num(v[1], -40, 130) != null ? [num(v[0], -40, 160), num(v[1], -40, 130)] : null);
+  const ANCLAS = new Set(['m0', 'm1', 'mm', 'p0', 'p1', 'pm', 'r0', 'r1', 'c', 'h', 'k']);
+  const PIEZAS = new Set(['barra', 'barraF', 'barraL', 'mancuerna', 'mancuernaF', 'kb', 'balon', 'disco', 'discoS', 'agarre', 'rueda', 'cojin']);
+  const punto = (v) => (typeof v === 'string' ? (ANCLAS.has(v) ? v : null) : par(v));
+  const extremo = (v) => (v == null ? null : Array.isArray(v) && typeof v[0] === 'string' ? (['h', 'c', 'k'].includes(v[0]) && num(v[1], -40, 40) != null && num(v[2], -40, 40) != null ? [v[0], num(v[1], -40, 40), num(v[2], -40, 40)] : null) : par(v));
+  const dir2 = (v) => (Array.isArray(v) && v.length === 2 && num(v[0], -1, 1) != null && num(v[1], -1, 1) != null && (v[0] || v[1]) ? [num(v[0], -1, 1), num(v[1], -1, 1)] : null);
+  function limpiarAnim(a) {
+    if (!a || !Array.isArray(a.f) || !a.f.length) return null;
+    const f = a.f.slice(0, 6).map((q) => {
+      if (!q || typeof q !== 'object' || !par(q.c)) return null;
+      const o = { c: par(q.c), t: num(q.t, -200, 380) ?? 90 };
+      if (q.v === 'f') o.v = 'f';
+      for (const [k, lo, hi] of [['cab', -45, 45], ['cu', -130, 130], ['tl', 0.4, 1], ['lm', 0.3, 1], ['lb', 0.3, 1]]) if (num(q[k], lo, hi) != null) o[k] = num(q[k], lo, hi);
+      for (const k of ['p', 'm']) if (Array.isArray(q[k])) o[k] = [extremo(q[k][0]), extremo(q[k][1])];
+      for (const k of ['ko', 'co']) if (Array.isArray(q[k])) o[k] = [dir2(q[k][0]), dir2(q[k][1])];
+      if (num(q.pie, -200, 200) != null) o.pie = num(q.pie, -200, 200); else if (Array.isArray(q.pie) && q.pie.length === 2 && q.pie.every((x) => num(x, -200, 200) != null)) o.pie = q.pie.map((x) => num(x, -200, 200));
+      if (q.sup === true) o.sup = true;
+      return o;
+    });
+    if (f.some((q) => !q) || f.some((q) => (q.v || 'l') !== (f[0].v || 'l'))) return null;
+    const out = { f };
+    if (Array.isArray(a.eq)) out.eq = a.eq.slice(0, 4).map((e) => (e && PIEZAS.has(e.k) && punto(e.en) ? { k: e.k, en: punto(e.en), ...(par(e.o) ? { o: par(e.o).map((x) => Math.max(-20, Math.min(20, x))) } : {}), ...(num(e.a, -180, 180) != null ? { a: num(e.a, -180, 180) } : {}) } : null)).filter(Boolean);
+    if (Array.isArray(a.lin)) out.lin = a.lin.slice(0, 3).map((e) => (e && ['banda', 'cable', 'trx'].includes(e.k) && punto(e.de) && punto(e.a) ? { k: e.k, de: punto(e.de), a: punto(e.a) } : null)).filter(Boolean);
+    if (Array.isArray(a.esc)) out.esc = a.esc.slice(0, 8).map((e) => {
+      if (!e) return null;
+      if (e.k === 'r' && par([e.x, e.y]) && num(e.w, 0.5, 130) != null && num(e.h, 0.5, 100) != null) return { k: 'r', x: num(e.x, -40, 160), y: num(e.y, -40, 130), w: num(e.w, 0.5, 130), h: num(e.h, 0.5, 100), rx: 1.4 };
+      if (e.k === 'l' && par(e.a) && par(e.b)) return { k: 'l', a: par(e.a), b: par(e.b), w: num(e.w, 1, 4) ?? 2 };
+      if (e.k === 'c' && par(e.c) && num(e.r, 0.5, 12) != null) return { k: 'c', c: par(e.c), r: num(e.r, 0.5, 12), cl: 'e2' };
+      return null;
+    }).filter(Boolean);
+    if (num(a.zoom, 0.7, 1) != null) out.zoom = num(a.zoom, 0.7, 1);
+    if (num(a.dur, 1.2, 9) != null) out.dur = num(a.dur, 1.2, 9);
+    if (a.exc === 'ida' || a.exc === 'vuelta') out.exc = a.exc;
+    if (a.piso === false) out.piso = false;
+    if (a.cardio === true) out.cardio = true;
+    if (a.ciclo === true && f.length > 2) out.ciclo = true;
+    return out;
+  }
+  // Ejercicio dibujable a partir de un ejercicio propio con animación guardada (o null si no tiene o no es válida).
+  const PROPIAS = new WeakMap();
+  function propia(id, o) {
+    if (!o || !o.anim || typeof o.anim !== 'object') return null;
+    if (PROPIAS.has(o.anim)) return PROPIAS.get(o.anim);
+    const a = limpiarAnim(o.anim);
+    const g = G[o.g] ? o.g : 'core';
+    const e = a ? { id: String(id), n: String(o.n || 'Ejercicio'), g, m: (o.m || []).filter((k) => MUS[k]), s: (o.s || []).filter((k) => MUS[k]), al: [], propia: true, ...a } : null;
+    PROPIAS.set(o.anim, e);
+    return e;
+  }
+  return { lista: L, G, MUS, buscar, norm, clave, palabras, parecidos, choques: CHOQUES, limpiarAnim, propia };
 })();
 if (typeof module !== 'undefined') module.exports = EJ;
 
@@ -1559,7 +1612,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
       if (propio) id = propio[0]; else { const f = EJ.buscar(n); if (f) id = f.id; }
     }
     const o = (id && ov[id]) || {};
-    const base = PRE.get(id) || (o.base ? PRE.get(o.base) : null);
+    const base = PRE.get(id) || EJ.propia(id, o) || (o.base ? PRE.get(o.base) : null);
     return { id, n, img: o.img || '', fig: base, m: o.m || (base && base.m) || [], s: o.s || (base && base.s) || [], g: o.g || (base && base.g) || '', nota: o.nota || '' };
   }
   function info(e) {

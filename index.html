@@ -726,7 +726,7 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
      así el sitio publicado no muestra nombres ni datos de salud.
    - Después corre la misma app de claude.ai (editor.js, dentro de arrancarApp) con esta base local. */
 (() => {
-  const VERSION = "4.0.0";
+  const VERSION = "4.1.0";
   const CLAVE = 'inquieta-entrena-datos';
   const CLAVE_META = 'inquieta-entrena-meta';
   const COLS = ['alumnos', 'rutinas', 'clases', 'base', 'ejercicios', 'plantillas', 'sesiones'];
@@ -2495,7 +2495,60 @@ const EJ = (() => {
     const pal = palabras(nombre); if (!pal.length) return [];
     return L.map((e) => [e, pal.filter((w) => e._tk.has(w)).length / Math.sqrt(pal.length)]).filter(([, p]) => p > 0).sort((a, b) => b[1] - a[1]).slice(0, n).map(([e]) => e);
   }
-  return { lista: L, G, MUS, buscar, norm, clave, palabras, parecidos, choques: CHOQUES };
+  /* ---------- animaciones propias (creadas para un ejercicio nuevo de la entrenadora) ----------
+     Llegan como datos (posturas clave) y se guardan con el ejercicio. Antes de dibujarlas se limpian: solo números
+     dentro del lienzo, implementos conocidos y nada de texto libre. Así ningún dato raro llega al dibujo. */
+  const num = (v, a, b) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : null);
+  const par = (v) => (Array.isArray(v) && v.length === 2 && num(v[0], -40, 160) != null && num(v[1], -40, 130) != null ? [num(v[0], -40, 160), num(v[1], -40, 130)] : null);
+  const ANCLAS = new Set(['m0', 'm1', 'mm', 'p0', 'p1', 'pm', 'r0', 'r1', 'c', 'h', 'k']);
+  const PIEZAS = new Set(['barra', 'barraF', 'barraL', 'mancuerna', 'mancuernaF', 'kb', 'balon', 'disco', 'discoS', 'agarre', 'rueda', 'cojin']);
+  const punto = (v) => (typeof v === 'string' ? (ANCLAS.has(v) ? v : null) : par(v));
+  const extremo = (v) => (v == null ? null : Array.isArray(v) && typeof v[0] === 'string' ? (['h', 'c', 'k'].includes(v[0]) && num(v[1], -40, 40) != null && num(v[2], -40, 40) != null ? [v[0], num(v[1], -40, 40), num(v[2], -40, 40)] : null) : par(v));
+  const dir2 = (v) => (Array.isArray(v) && v.length === 2 && num(v[0], -1, 1) != null && num(v[1], -1, 1) != null && (v[0] || v[1]) ? [num(v[0], -1, 1), num(v[1], -1, 1)] : null);
+  function limpiarAnim(a) {
+    if (!a || !Array.isArray(a.f) || !a.f.length) return null;
+    const f = a.f.slice(0, 6).map((q) => {
+      if (!q || typeof q !== 'object' || !par(q.c)) return null;
+      const o = { c: par(q.c), t: num(q.t, -200, 380) ?? 90 };
+      if (q.v === 'f') o.v = 'f';
+      for (const [k, lo, hi] of [['cab', -45, 45], ['cu', -130, 130], ['tl', 0.4, 1], ['lm', 0.3, 1], ['lb', 0.3, 1]]) if (num(q[k], lo, hi) != null) o[k] = num(q[k], lo, hi);
+      for (const k of ['p', 'm']) if (Array.isArray(q[k])) o[k] = [extremo(q[k][0]), extremo(q[k][1])];
+      for (const k of ['ko', 'co']) if (Array.isArray(q[k])) o[k] = [dir2(q[k][0]), dir2(q[k][1])];
+      if (num(q.pie, -200, 200) != null) o.pie = num(q.pie, -200, 200); else if (Array.isArray(q.pie) && q.pie.length === 2 && q.pie.every((x) => num(x, -200, 200) != null)) o.pie = q.pie.map((x) => num(x, -200, 200));
+      if (q.sup === true) o.sup = true;
+      return o;
+    });
+    if (f.some((q) => !q) || f.some((q) => (q.v || 'l') !== (f[0].v || 'l'))) return null;
+    const out = { f };
+    if (Array.isArray(a.eq)) out.eq = a.eq.slice(0, 4).map((e) => (e && PIEZAS.has(e.k) && punto(e.en) ? { k: e.k, en: punto(e.en), ...(par(e.o) ? { o: par(e.o).map((x) => Math.max(-20, Math.min(20, x))) } : {}), ...(num(e.a, -180, 180) != null ? { a: num(e.a, -180, 180) } : {}) } : null)).filter(Boolean);
+    if (Array.isArray(a.lin)) out.lin = a.lin.slice(0, 3).map((e) => (e && ['banda', 'cable', 'trx'].includes(e.k) && punto(e.de) && punto(e.a) ? { k: e.k, de: punto(e.de), a: punto(e.a) } : null)).filter(Boolean);
+    if (Array.isArray(a.esc)) out.esc = a.esc.slice(0, 8).map((e) => {
+      if (!e) return null;
+      if (e.k === 'r' && par([e.x, e.y]) && num(e.w, 0.5, 130) != null && num(e.h, 0.5, 100) != null) return { k: 'r', x: num(e.x, -40, 160), y: num(e.y, -40, 130), w: num(e.w, 0.5, 130), h: num(e.h, 0.5, 100), rx: 1.4 };
+      if (e.k === 'l' && par(e.a) && par(e.b)) return { k: 'l', a: par(e.a), b: par(e.b), w: num(e.w, 1, 4) ?? 2 };
+      if (e.k === 'c' && par(e.c) && num(e.r, 0.5, 12) != null) return { k: 'c', c: par(e.c), r: num(e.r, 0.5, 12), cl: 'e2' };
+      return null;
+    }).filter(Boolean);
+    if (num(a.zoom, 0.7, 1) != null) out.zoom = num(a.zoom, 0.7, 1);
+    if (num(a.dur, 1.2, 9) != null) out.dur = num(a.dur, 1.2, 9);
+    if (a.exc === 'ida' || a.exc === 'vuelta') out.exc = a.exc;
+    if (a.piso === false) out.piso = false;
+    if (a.cardio === true) out.cardio = true;
+    if (a.ciclo === true && f.length > 2) out.ciclo = true;
+    return out;
+  }
+  // Ejercicio dibujable a partir de un ejercicio propio con animación guardada (o null si no tiene o no es válida).
+  const PROPIAS = new WeakMap();
+  function propia(id, o) {
+    if (!o || !o.anim || typeof o.anim !== 'object') return null;
+    if (PROPIAS.has(o.anim)) return PROPIAS.get(o.anim);
+    const a = limpiarAnim(o.anim);
+    const g = G[o.g] ? o.g : 'core';
+    const e = a ? { id: String(id), n: String(o.n || 'Ejercicio'), g, m: (o.m || []).filter((k) => MUS[k]), s: (o.s || []).filter((k) => MUS[k]), al: [], propia: true, ...a } : null;
+    PROPIAS.set(o.anim, e);
+    return e;
+  }
+  return { lista: L, G, MUS, buscar, norm, clave, palabras, parecidos, choques: CHOQUES, limpiarAnim, propia };
 })();
 if (typeof module !== 'undefined') module.exports = EJ;
 
@@ -3753,6 +3806,13 @@ function normWsp(v) {
 let BIB = null; let BIB_K = null; let BIB_ID = new Map(); let BIB_NOM = new Map();
 const PRE = new Map(EJ.lista.map((f) => [f.id, f]));
 const figSola = (f) => ({ id: f.id, n: f.n, g: f.g, m: f.m || [], s: f.s || [], nota: '', img: '', fig: f, propio: false });
+// Animación propia de un ejercicio de Fernanda (creada con IA y aprobada por ella). Al cambiar, se redibuja.
+const PROPIA_VISTA = new Map();
+function figPropia(id, o) {
+  const f = EJ.propia(id, o); if (!f) return null;
+  if (PROPIA_VISTA.get(id) !== f) { PROPIA_VISTA.set(id, f); SVGC.delete(id); SVGC.delete(id + '~a'); }
+  return f;
+}
 function biblio() {
   if (BIB && BIB_K === S.ejercicios) return BIB;
   const out = [];
@@ -3765,7 +3825,7 @@ function biblio() {
     if (PRE.has(id) || o.oculto) continue;
     const b = o.base ? PRE.get(o.base) : null;
     const g = GRUPOS.includes(o.g) ? o.g : b ? b.g : 'core';
-    out.push({ id, n: o.n || 'Ejercicio', g, m: o.m && o.m.length ? o.m : b ? b.m : MUS_DE_GRUPO[g], s: o.s || (b ? b.s : []) || [], nota: o.nota || '', img: o.img || '', al: o.al || [], fig: b || null, propio: true });
+    out.push({ id, n: o.n || 'Ejercicio', g, m: o.m && o.m.length ? o.m : b ? b.m : MUS_DE_GRUPO[g], s: o.s || (b ? b.s : []) || [], nota: o.nota || '', img: o.img || '', al: o.al || [], fig: figPropia(id, o) || b || null, propio: true });
   }
   out.sort((a, b) => a.n.localeCompare(b.n, 'es'));
   BIB = out; BIB_K = S.ejercicios;
@@ -3998,23 +4058,84 @@ function chipsMus(sel, t) {
 function borradorEj(r) {
   if (r.nuevo) {
     const n = NOMBRE_PENDIENTE; NOMBRE_PENDIENTE = '';
-    return { ruta: r.clave, col: 'ejercicios', nuevo: true, id: nuevoId('ej'), padre: '#ejercicios', d: { n, g: FILTRO.g || '', m: [], s: [], nota: '', img: '', base: '' }, sucio: false };
+    return { ruta: r.clave, col: 'ejercicios', nuevo: true, id: nuevoId('ej'), padre: '#ejercicios', d: { n, g: FILTRO.g || '', m: [], s: [], nota: '', img: '', base: '', anim: null, desc: '' }, sucio: false };
   }
   const x = ejPorId(r.id); if (!x) return null;
   const doc = S.ejercicios.get(x.id) || {};
-  return { ruta: r.clave, col: 'ejercicios', id: x.id, propio: x.propio, padre: '#ej-' + x.id, d: { n: x.n, g: x.g, m: [...x.m], s: [...x.s], nota: x.nota, img: x.img, base: doc.base || '' }, sucio: false };
+  return { ruta: r.clave, col: 'ejercicios', id: x.id, propio: x.propio, padre: '#ej-' + x.id, d: { n: x.n, g: x.g, m: [...x.m], s: [...x.s], nota: x.nota, img: x.img, base: doc.base || '', anim: doc.anim || null, desc: doc.desc || '' }, sucio: false };
 }
+/* Animación propia con IA: Fernanda describe el ejercicio, la nube propone las posturas, la app las revisa
+   (FIG.validar) y muestra la vista previa. Ella decide: guardar, pedir un cambio, regenerar o quitar.
+   Si la IA no entiende el ejercicio, pregunta; nunca inventa ni presta la animación de otro. */
+function bloqueIA(B, figIA) {
+  if (!NUBE) return '';
+  const d = B.d; const ia = B.ia || {};
+  const rev = figIA ? FIG.validar(figIA) : null;
+  return `<div class="campo ia"><span>Animación propia (IA)</span>
+    <textarea data-b="d.desc" rows="2" placeholder="Describe el movimiento (opcional): posición inicial, qué se mueve, con qué implemento">${esc(d.desc || '')}</textarea>
+    ${figIA ? `<div class="ia-prev"><div class="ia-fig">${FIG.figura(figIA, { animar: true })}</div>
+      <p class="ia-rev ${rev.ok ? 'ok' : 'mal'}">${rev.ok ? 'Revisión biomecánica aprobada ✓' : 'No pasó la revisión: ' + esc(rev.fallas.join(', '))}</p>
+      ${ia.texto ? `<p class="ia-txt">${esc(ia.texto)}</p>` : ''}</div>
+      <input type="text" data-b="ia.cambio" value="${esc(ia.cambio || '')}" placeholder="¿Qué le cambiarías? Ej: baja más la cadera">` : ''}
+    ${ia.pregunta ? `<p class="ia-rev mal">${esc(ia.pregunta)}</p>` : ''}
+    <div class="ia-btns"><button type="button" class="btn-sec" data-act="iaCrear"${ia.cargando ? ' disabled' : ''}>${ia.cargando ? 'Creando la animación…' : figIA ? 'Regenerar' : 'Crear animación con IA'}</button>
+    ${figIA ? '<button type="button" class="btn-ghost" data-act="iaQuitar">Quitar</button>' : ''}</div>
+    <small>${figIA ? 'Mira que el monito haga el ejercicio correcto antes de guardar.' : 'Crea un monito exclusivo para este ejercicio. Lo ves antes de guardar.'}</small></div>`;
+}
+async function pedirAnim(cuerpo) {
+  let nb = {}; try { nb = JSON.parse(localStorage.getItem('inquieta-nube') || '{}'); } catch (e) { nb = {}; }
+  let api = ''; try { api = localStorage.getItem('inq-api') || ''; } catch (e) { api = ''; }
+  if (!api) api = /netlify\.app$|^localhost$|^127\.0\.0\.1$/.test(location.hostname) ? location.origin + '/api' : 'https://inquieta.netlify.app/api';
+  const r = await fetch(api + '/animar', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (nb.token || '') }, body: JSON.stringify(cuerpo) });
+  let j = {}; try { j = await r.json(); } catch (e) { j = {}; }
+  if (!r.ok) throw new Error(j.mensaje || 'No se pudo crear la animación. Revisa tu conexión.');
+  return j;
+}
+ACT.iaCrear = async () => {
+  const B = BORRADOR; if (!B || (B.ia && B.ia.cargando)) return;
+  const d = B.d; const n = limpio(d.n);
+  if (!n) { toast('Escribe primero el nombre del ejercicio'); enfocar('[data-b="d.n"]'); return; }
+  const ia = B.ia = { ...(B.ia || {}), cargando: true, pregunta: '' }; repintarEditor();
+  try {
+    let cuerpo = { nombre: n, descripcion: limpio(d.desc || ''), grupo: d.g ? EJ.G[d.g] : '' };
+    if (d.anim && ia.cambio) cuerpo = { ...cuerpo, previa: d.anim, cambio: limpio(ia.cambio) };
+    let j = null; let anim = null;
+    for (let intento = 0; intento < 2; intento++) {
+      j = await pedirAnim(cuerpo);
+      if (!j.ok) break;
+      anim = EJ.limpiarAnim(j.anim);
+      const rev = anim ? FIG.validar({ id: 'ia~' + intento, n, g: 'core', m: [], ...anim }) : { ok: false, fallas: ['datos incompletos'] };
+      if (rev.ok) break;
+      cuerpo = { ...cuerpo, previa: j.anim, fallas: rev.fallas.join(', ') }; // un segundo intento, diciéndole qué falló
+    }
+    if (BORRADOR !== B) return;
+    if (!j.ok) { ia.pregunta = 'Necesito un dato más: ' + j.pregunta; }
+    else if (!anim) { ia.pregunta = 'No pude armar la animación. Describe un poco más el movimiento e inténtalo otra vez.'; }
+    else {
+      d.anim = anim; d.base = ''; ia.cambio = ''; B.sucio = true;
+      ia.texto = [j.inicio && 'Inicio: ' + j.inicio, j.ejecucion && 'Ejecución: ' + j.ejecucion, j.errores && 'Evita: ' + j.errores].filter(Boolean).join(' · ');
+      if (!d.g && EJ.G[j.g]) d.g = j.g;
+      if (!d.m.length) d.m = (j.m || []).filter((k) => EJ.MUS[k]);
+      if (!d.s.length) d.s = (j.s || []).filter((k) => EJ.MUS[k] && !d.m.includes(k));
+      if (!limpio(d.nota) && j.ejecucion) d.nota = j.ejecucion;
+    }
+  } catch (err) { if (BORRADOR === B) ia.pregunta = err.message; }
+  if (BORRADOR === B) { ia.cargando = false; repintarEditor(); }
+};
+ACT.iaQuitar = () => { const B = BORRADOR; if (!B) return; B.d.anim = null; B.ia = {}; B.sucio = true; repintarEditor(); };
 function vistaEdEj(r) {
   if (!BORRADOR || BORRADOR.ruta !== r.clave) { BORRADOR = borradorEj(r); if (!BORRADOR) return noExiste('#ejercicios'); }
   const B = BORRADOR; const d = B.d;
-  const fig = PRE.get(B.id) || (d.base ? PRE.get(d.base) : null) || exacto(d.n);
+  const figIA = d.anim ? figPropia(B.id, { n: d.n, g: d.g, m: d.m, s: d.s, anim: d.anim }) : null;
+  const fig = PRE.get(B.id) || figIA || (d.base ? PRE.get(d.base) : null) || exacto(d.n);
   const vista = { id: B.id, n: d.n, g: d.g || 'core', m: d.m.length ? d.m : MUS_DE_GRUPO[d.g] || [], s: d.s, img: d.img, fig };
   return `<header class="barra"><div class="wrap"><button type="button" class="volver" data-act="cancelar" aria-label="Cancelar">${ICON.back}</button><h1>${B.nuevo ? 'Nuevo ejercicio' : 'Editar ejercicio'}</h1></div></header>
   <div class="wrap vista editor">
     <div class="ed-foto"><div class="ed-foto-img">${imagenEj(vista, d.n)}</div>${NUBE ? `<div class="ed-foto-btns"><label class="btn-sec">${ICON.foto}${d.img ? 'Cambiar foto' : 'Foto o GIF'}<input type="file" accept="image/*" class="oculto" data-foto="fotoEd"></label>${d.img ? '<button type="button" class="btn-ghost" data-act="edQuitarFoto">Quitar foto</button>' : ''}<small>${d.img ? 'Se ve tu foto.' : fig ? 'Sin foto se ve el dibujo.' : 'Sin foto se ve el mapa de músculos.'}</small></div>` : ''}</div>
     ${campo('Nombre', inp('d.n', d.n, 'Ej: Sentadilla búlgara', 'autocapitalize="sentences"'))}
     <div class="campo"><span>Grupo muscular</span>${chipsGrupos(d.g, 'edGrupo', false)}</div>
-    ${B.nuevo || B.propio ? `<div class="campo"><span>Monito</span><div class="ed-monito">${fig ? `<span class="ed-mon-img">${dibujo(fig)}</span><span class="ed-mon-t"><b>${esc(fig.n)}</b><small>${d.base ? 'Elegido por ti' : 'Lo reconocí por el nombre'}</small></span>` : '<span class="ed-mon-t"><b>Sin monito</b><small>Se ve el mapa de músculos</small></span>'}<button type="button" class="btn-sec chico" data-act="abrirSel" data-sel='{"tipo":"monito"}'>${fig ? 'Cambiar' : 'Elegir monito'}</button></div></div>` : ''}
+    ${B.nuevo || B.propio ? `<div class="campo"><span>Monito</span><div class="ed-monito">${fig ? `<span class="ed-mon-img">${dibujo(fig)}</span><span class="ed-mon-t"><b>${esc(fig.n)}</b><small>${figIA ? 'Animación propia de este ejercicio' : d.base ? 'Elegido por ti' : 'Lo reconocí por el nombre'}</small></span>` : '<span class="ed-mon-t"><b>Sin monito</b><small>Se ve el mapa de músculos</small></span>'}<button type="button" class="btn-sec chico" data-act="abrirSel" data-sel='{"tipo":"monito"}'>${fig ? 'Cambiar' : 'Elegir monito'}</button></div></div>` : ''}
+    ${B.nuevo || B.propio ? bloqueIA(B, figIA) : ''}
     <div class="campo"><span>Músculos principales</span>${chipsMus(d.m, 'm')}</div>
     <div class="campo"><span>Músculos secundarios (opcional)</span>${chipsMus(d.s, 's')}</div>
     ${campo('Nota de técnica (opcional)', area('d.nota', d.nota, 'Ej: Espalda neutra, rodillas siguen la punta de los pies', 3))}
@@ -4295,9 +4416,10 @@ ACT.guardarEj = async (el) => {
   if (otro) { toast(`Ya tienes «${otro.n}» en tu biblioteca`); return; }
   const doc = { ...docEj(B.id), n, g: d.g, m: d.m, s: d.s, nota: limpio(d.nota), modificado: new Date().toISOString() };
   if (d.img) doc.img = d.img; else delete doc.img;
+  if (d.anim) { doc.anim = d.anim; doc.desc = limpio(d.desc || ''); } else { delete doc.anim; delete doc.desc; }
   delete doc.oculto;
   if (B.nuevo || B.propio) {
-    const f = d.base ? PRE.get(d.base) : exacto(n); if (f) doc.base = f.id; else delete doc.base;
+    const f = d.anim ? null : d.base ? PRE.get(d.base) : exacto(n); if (f) doc.base = f.id; else delete doc.base;
     if (!doc.m.length) { doc.m = f ? [...(f.m || [])] : MUS_DE_GRUPO[d.g] || []; if (f && !doc.s.length) doc.s = [...(f.s || [])]; }
   }
   B.guardando = true; el.disabled = true;
@@ -5026,6 +5148,15 @@ ACT.guiaGuardar = async (el) => {
   else { B.guardando = false; el.disabled = false; }
 };
 (() => { const st = document.createElement('style'); st.textContent = `
+.campo.ia textarea, .campo.ia input[type=text] { width: 100%; font-size: 16px; margin-top: 6px; }
+.ia-prev { margin-top: 10px; padding: 10px; border-radius: 14px; background: var(--surface); box-shadow: var(--shadow, none); }
+.ia-fig svg { width: 100%; height: auto; display: block; border-radius: 10px; }
+.ia-rev { margin: 8px 0 0; font-weight: 700; font-size: 14px; }
+.ia-rev.ok { color: var(--brand-d, #008e8a); }
+.ia-rev.mal { color: #c2410c; }
+.ia-txt { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.ia-btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 4px; }
+.ia-btns button { min-height: 44px; }
 .fila-mover { display: flex; justify-content: flex-end; margin-top: 8px; }
 .chip.mover { font-size: 13px; }
 .guia-info small { display: block; }
