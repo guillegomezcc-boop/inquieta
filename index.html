@@ -726,7 +726,7 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
      así el sitio publicado no muestra nombres ni datos de salud.
    - Después corre la misma app de claude.ai (editor.js, dentro de arrancarApp) con esta base local. */
 (() => {
-  const VERSION = "3.9.0";
+  const VERSION = "3.10.0";
   const CLAVE = 'inquieta-entrena-datos';
   const CLAVE_META = 'inquieta-entrena-meta';
   const COLS = ['alumnos', 'rutinas', 'clases', 'base', 'ejercicios', 'plantillas', 'sesiones'];
@@ -3449,20 +3449,32 @@ function indicaciones(e) {
   return (t.length ? `<div class="inds">${t.join('')}</div>` : e.plan ? `<div class="plan-ej">Plan: ${esc(e.plan)}</div>` : '') + (e.no ? `<div class="tec">${esc(e.no)}</div>` : '');
 }
 // Llena las imágenes de la grilla a medida que aparecen en pantalla (son muchas).
+// «Monitos en movimiento»: los que se ven en pantalla se animan; al salir de la pantalla vuelven a quedar quietos
+// (así el celular no anima los 139 a la vez). Se puede apagar (localStorage inq-mov) y respeta «reducir movimiento».
 let IO = null;
-function llenar(el) {
+let MOVER = true;
+try { MOVER = localStorage.getItem('inq-mov') !== '0' && !matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (err) { /* sin almacenamiento */ }
+function llenar(el, animar) {
   el.classList.add('ok');
   const x = ejPorId(el.dataset.fig); if (!x) return;
-  el.innerHTML = imagenEj(x, x.n) + (x.fig || x.img ? `<span class="ejc-mapa">${mapaMini(x)}</span>` : '');
+  const a = !!(animar && MOVER && x.fig && !x.img);
+  if (el.dataset.anim === String(a) && el.firstChild) return;
+  el.dataset.anim = String(a);
+  el.innerHTML = imagenEj(x, x.n, { animar: a }) + (x.fig || x.img ? `<span class="ejc-mapa">${mapaMini(x)}</span>` : '');
 }
 function llenarFiguras() {
-  const els = document.querySelectorAll('[data-fig]:not(.ok)');
+  const els = document.querySelectorAll('[data-fig]');
   if (IO) IO.disconnect();
   if (!els.length) return;
-  if (!('IntersectionObserver' in window)) { els.forEach(llenar); return; }
-  IO = new IntersectionObserver((ents) => ents.forEach((en) => { if (en.isIntersecting) { IO.unobserve(en.target); llenar(en.target); } }), { rootMargin: '400px 0px' });
-  els.forEach((el) => IO.observe(el));
+  if (!('IntersectionObserver' in window)) { els.forEach((el) => llenar(el, false)); return; }
+  IO = new IntersectionObserver((ents) => ents.forEach((en) => {
+    if (en.isIntersecting) llenar(en.target, true);
+    else if (en.target.dataset.anim === 'true') llenar(en.target, false);
+  }), { rootMargin: '60px 0px' });
+  els.forEach((el) => { if (!el.classList.contains('ok')) llenar(el, false); IO.observe(el); });
 }
+const botonMover = () => `<button type="button" class="chip mover ${MOVER ? 'on' : ''}" data-act="moverMonitos" aria-pressed="${MOVER}">${MOVER ? 'Detener monitos' : 'Mover monitos'}</button>`;
+ACT.moverMonitos = () => { MOVER = !MOVER; try { localStorage.setItem('inq-mov', MOVER ? '1' : '0'); } catch (err) { /* nada */ } document.querySelectorAll('[data-fig].ok').forEach((el) => { delete el.dataset.anim; el.classList.remove('ok'); }); pintar(); };
 
 /* ---------- rutas y vistas ---------- */
 let VOLVER = '#inicio';
@@ -3551,6 +3563,7 @@ function vistaEjercicios() {
   return `${marca()}<div class="wrap vista">
     <label class="buscar"><span class="vh">Buscar ejercicio</span><input type="search" data-filtro="ej" placeholder="Buscar por nombre o músculo" value="${esc(FILTRO.q)}" autocomplete="off" autocorrect="off" enterkeyhint="search"></label>
     ${chipsGrupos(FILTRO.g, 'filtroGrupo')}
+    <div class="fila-mover">${botonMover()}</div>
     <p class="intro cuenta" data-cuenta></p>
     <ul class="ej-grid" data-grid>${L.map((x) => tarjetaEj(x)).join('')}</ul>
     <div class="vacio-caja oculto" data-sin><p>No encontré ese ejercicio.</p>${ed ? '<a class="btn-ghost" href="#nuevo-ejercicios" data-tras="nuevoConNombre">+ Agregarlo a tu biblioteca</a>' : ''}</div>
@@ -4086,7 +4099,7 @@ async function alEnviarPin(form) {
 const cancelarBase = ACT.cancelar;
 ACT.cancelar = (el) => {
   const B = BORRADOR;
-  if (B && (B.col === 'armar' || B.col === 'ejercicios') && B.sucio && !el.classList.contains('btn-sec') && !(B.avisoSalir && Date.now() - B.avisoSalir < 4000)) {
+  if (B && (B.col === 'armar' || B.col === 'ejercicios' || B.col === 'calest') && B.sucio && !el.classList.contains('btn-sec') && !(B.avisoSalir && Date.now() - B.avisoSalir < 4000)) {
     B.avisoSalir = Date.now(); toast('Tienes cambios sin guardar. Toca otra vez la flecha para salir sin guardarlos.'); return;
   }
   cancelarBase(el);
@@ -4101,10 +4114,11 @@ function listaDe(clave) {
   let m;
   if ((m = /^blq:(\d+)$/.exec(clave))) return ((B.d.bloques || [])[+m[1]] || {})._items || null;
   if ((m = /^circ:(\d+)$/.exec(clave))) return ((B.d.circuitos || [])[+m[1]] || {})._items || null;
+  if (clave === 'cal' || clave === 'est') return (B.d && B.d[clave]) || null;
   return null;
 }
 const conHist = (x) => !!x && (x.h || []).some(conDatos);
-const CLAVE_SEL = { dia: 'dia', rutina: 'rut' };
+const CLAVE_SEL = { dia: 'dia', rutina: 'rut', cal: 'cal', est: 'est' };
 function listaSel(B) {
   const s = B.sel || {};
   if (s.tipo === 'bloque') return listaDe('blq:' + s.i);
@@ -4117,6 +4131,8 @@ function tituloSel(B) {
   if (s.tipo === 'bloque') { const b = B.d.bloques[s.i] || {}; return `Agregar a ${limpio(b.nombre) ? '«' + limpio(b.nombre) + '»' : 'Bloque ' + (s.i + 1)}`; }
   if (s.tipo === 'circ') { const c = B.d.circuitos[s.i] || {}; return `Agregar a ${limpio(c.nombre) ? '«' + limpio(c.nombre) + '»' : 'Circuito ' + (s.i + 1)}`; }
   if (s.tipo === 'anotar') return 'Cambiar ejercicio hoy';
+  if (s.tipo === 'cal') return 'Agregar al calentamiento';
+  if (s.tipo === 'est') return 'Agregar al estiramiento';
   if (s.tipo === 'vincular' || s.tipo === 'monito') return 'Elegir monito';
   return 'Agregar ejercicios';
 }
@@ -4124,6 +4140,7 @@ function nuevoParaSel(B, f) {
   const t = B.sel.tipo;
   if (t === 'dia' || t === 'rutina') return nuevoItem(f);
   if (t === 'circ') return { k: ++KITEM, n: f.n, lib: f.id, p: '', r: '' };
+  if (t === 'cal' || t === 'est') return itemGuia({ id: f.id, n: f.n, ...(t === 'est' || f.g === 'estiramientos' ? { ti: f.id === 'postura-nino' ? 40 : 30, lados: !SIN_LADOS.has(f.id) } : { re: '10' }) });
   return { k: ++KITEM, n: f.n, lib: f.id };
 }
 // «Usados hace poco»: los últimos que eligió en este celular.
@@ -4180,6 +4197,7 @@ function vistaSelector(r) {
   <div class="wrap vista elegir">${sub}
     <label class="buscar"><span class="vh">Buscar ejercicio</span><input type="search" data-filtro="elegir" placeholder="Buscar por nombre o músculo" value="${esc(FILTRO_E.q)}" autocomplete="off" autocorrect="off" enterkeyhint="search"></label>
     ${chipsGrupos(FILTRO_E.g, 'filtroGrupoE')}
+    <div class="fila-mover">${botonMover()}</div>
     ${rec.length ? `<div class="recientes" data-recientes><div class="rec-t">${esMon ? 'Se parecen por el nombre' : 'Usados hace poco'}</div><ul class="ej-fila sel">${rec.map((x) => tarjetaEj(x, true, en.has(x.id))).join('')}</ul></div>` : ''}
     <p class="intro cuenta" data-cuenta></p>
     <ul class="ej-grid sel" data-grid>${lista.map((x) => tarjetaEj(x, true, en.has(x.id))).join('')}</ul>
@@ -4214,7 +4232,7 @@ async function crearEjercicio(nombre, g) {
 ACT.abrirSel = (el) => {
   const B = BORRADOR; if (!B) return;
   try { B.sel = JSON.parse(el.dataset.sel || '{}'); } catch (e) { return; }
-  PREVIA = null; SEL_NUEVO = null; FILTRO_E.q = ''; FILTRO_E.g = '';
+  PREVIA = null; SEL_NUEVO = null; FILTRO_E.q = ''; FILTRO_E.g = B.sel.tipo === 'est' ? 'estiramientos' : B.sel.tipo === 'cal' ? 'movilidad' : '';
   SEL_PUSH = true; location.hash = '#' + B.ruta + '~elegir';
 };
 ACT.selCerrar = (el) => cerrarSel(el.dataset.ir || '#inicio');
@@ -4509,7 +4527,7 @@ function seccionSesiones(a) {
       return `<li><a class="tarjeta" href="#ses-${esc(x.id)}">${chipR(p)}<span><h2>${esc(etiquetaDia(x.fecha))} · Día ${esc(x.dia || '')}</h2><div class="meta">${h} de ${(x.ej || []).length} ejercicios${x.duracion ? ' · ' + minutos(x.duracion) : ''}${x.obs ? ' · 💬' : ''}</div>${m ? `<div class="ejs">Más exigente: ${esc(m.n)} (${m.rpe})</div>` : ''}</span><span class="chev" aria-hidden="true">›</span></a></li>`; }).join('')}</ul>`;
 }
 const vistaAlumnoBase = vistaAlumno;
-vistaAlumno = (a) => { const h = vistaAlumnoBase(a); const k = h.lastIndexOf('</div>'); return h.slice(0, k) + seccionSesiones(a) + h.slice(k); }; // eslint-disable-line no-func-assign
+vistaAlumno = (a) => { const h = vistaAlumnoBase(a); const k = h.lastIndexOf('</div>'); return h.slice(0, k) + tarjetaCalEst(a) + seccionSesiones(a) + h.slice(k); }; // eslint-disable-line no-func-assign
 function vistaSesion(id) {
   const x = (S.sesiones || new Map()).get(id); if (!x) return noExiste('#alumnos');
   const a = S.alumnos.get(x.alumnoId) || { id: 'alumnos', nombre: 'Alumno' };
@@ -4533,9 +4551,9 @@ function vistaSesion(id) {
   </div>`;
 }
 const rutaV3Base = rutaV3;
-rutaV3 = (h) => { const m = /^ses-(.+)$/.exec(h); if (m) return { tab: 'alumnos', v3: 'ses', id: m[1], clave: h }; return rutaV3Base(h); }; // eslint-disable-line no-func-assign
+rutaV3 = (h) => { let m = /^ses-(.+)$/.exec(h); if (m) return { tab: 'alumnos', v3: 'ses', id: m[1], clave: h }; m = /^calest-([^~]+)$/.exec(h); if (m) return { tab: 'alumnos', v3: 'calest', edit: true, id: m[1], clave: h, borrador: h, sinAviso: true }; return rutaV3Base(h); }; // eslint-disable-line no-func-assign
 const vistaV3Base = vistaV3;
-vistaV3 = (r) => (r.v3 === 'ses' ? (S.estado !== 'listo' && !hayDatos() ? vistaCargando() : vistaSesion(r.id)) : vistaV3Base(r)); // eslint-disable-line no-func-assign
+vistaV3 = (r) => (r.v3 === 'ses' || r.v3 === 'calest' ? (S.estado !== 'listo' && !hayDatos() ? vistaCargando() : r.v3 === 'ses' ? vistaSesion(r.id) : vistaCalEst(r)) : vistaV3Base(r)); // eslint-disable-line no-func-assign
 (() => { const st = document.createElement('style'); st.textContent = `
 .rpe-c { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 14px; display: grid; place-items: center; color: #fff; font: 800 18px/1 var(--display); }
 .rpe-c.vacio { background: var(--line); color: var(--muted); }
@@ -4560,6 +4578,79 @@ vistaV3 = (r) => (r.v3 === 'ses' ? (S.estado !== 'listo' && !hayDatos() ? vistaC
 .ses-ej b { display: block; font: 700 15px/1.25 var(--display); }
 .ses-ej small { display: block; font-size: 13px; color: var(--muted); }
 .ses-ej .rpe-c { width: 40px; height: 40px; flex-basis: 40px; font-size: 17px; border-radius: 12px; }
+`; document.head.appendChild(st); })();
+
+/* ---------- 3.10: calentamiento y estiramiento final elegidos para cada alumno ----------
+   Se guardan en el alumno: cal / est = [{id, n, ti | re, lados}]. Sin elegir, el link del alumno usa los estándar. */
+const GUIA_CAL = [{ id: 'marcha-activa', ti: 60 }, { id: 'cuello-movilidad', re: '5 por lado' }, { id: 'rotacion-hombros', re: '10 atrás y 10 adelante' }, { id: 'circulos-brazos', ti: 30 },
+  { id: 'rotacion-cadera', re: '8 por lado' }, { id: 'movilidad-tobillo', re: '10 por lado' }, { id: 'sentadilla-libre', re: '10' }, { id: 'estocada-rotacion', re: '6 por lado' }];
+const GUIA_EST = [{ id: 'estiramiento-cuadriceps', ti: 30, lados: true }, { id: 'estiramiento-isquios', ti: 30, lados: true }, { id: 'rodilla-pecho', ti: 30, lados: true },
+  { id: 'estiramiento-pantorrilla', ti: 30, lados: true }, { id: 'flexor-cadera', ti: 30, lados: true }, { id: 'postura-nino', ti: 40 }, { id: 'estiramiento-pecho', ti: 30, lados: true },
+  { id: 'estiramiento-hombro', ti: 30, lados: true }, { id: 'estiramiento-triceps', ti: 30, lados: true }];
+const SIN_LADOS = new Set(['postura-nino', 'cobra', 'perro-boca-abajo', 'mariposa', 'isquios-sentado', 'gato-camello', 'marcha-activa', 'circulos-brazos', 'rotacion-hombros', 'sentadilla-libre', 'cuello-movilidad', 'rotacion-cadera']);
+function itemGuia(x) { const f = ejPorId(x.id); return { k: ++KITEM, n: x.n || (f && f.n) || x.id, lib: x.id, ti: +x.ti || 0, re: +x.ti ? '' : String(x.re || '10'), lados: !!x.lados }; }
+const guiaDoc = (L) => L.map((x) => { const o = { id: x.lib, n: x.n }; if (+x.ti) o.ti = +x.ti; else o.re = limpio(x.re) || '10'; if (x.lados) o.lados = true; return o; });
+function tarjetaCalEst(a) {
+  if (!puedeEditar()) return '';
+  const propio = Array.isArray(a.cal) || Array.isArray(a.est);
+  const nc = (Array.isArray(a.cal) ? a.cal : GUIA_CAL).length; const ne = (Array.isArray(a.est) ? a.est : GUIA_EST).length;
+  return `<div class="sec">Calentamiento y estiramiento</div>
+    <ul class="lista"><li><a class="tarjeta" href="#calest-${esc(a.id)}"><span class="letra ic">${ICON.rutina}</span><span><h2>${propio ? 'Elegidos para ' + esc(corto(a)) : 'Los estándar'}</h2><div class="meta">${pl(nc, 'movimiento', 'movimientos')} de calentamiento · ${pl(ne, 'estiramiento', 'estiramientos')}</div><div class="ejs">Los ve en su entrenamiento guiado · toca para elegir</div></span><span class="chev" aria-hidden="true">›</span></a></li></ul>`;
+}
+function borradorCalEst(r) {
+  const a = S.alumnos.get(r.id); if (!a) return null;
+  return { ruta: r.borrador, col: 'calest', alumnoId: a.id, padre: '#' + a.id, sucio: false,
+    d: { cal: (Array.isArray(a.cal) ? a.cal : GUIA_CAL).map(itemGuia), est: (Array.isArray(a.est) ? a.est : GUIA_EST).map(itemGuia) } };
+}
+function filaGuia(x, i, lk) {
+  return `<li class="arm-ej" data-i="${i}"><div class="arm-fila"><span class="arm-asa" aria-label="Mantén y arrastra para ordenar">${ICON.asa}</span>${celdaImg(x)}
+    <span class="arm-info guia-info"><b>${esc(x.n)}</b><small>${x.ti ? segCorto(x.ti) + (x.lados ? ' por lado' : '') : esc(x.re || '') + (x.lados ? ' · por lado' : '')}</small></span>
+    <button type="button" class="arm-x" data-act="itQuitar" data-l="${lk}" data-i="${i}" aria-label="Quitar ${esc(x.n)}">✕</button></div>
+    <div class="guia-ed"><div class="seg" role="group" aria-label="Medir en"><button type="button" class="${x.ti ? '' : 'on'}" data-act="guiaModo" data-l="${lk}" data-i="${i}" data-m="re" aria-pressed="${!x.ti}">Reps</button><button type="button" class="${x.ti ? 'on' : ''}" data-act="guiaModo" data-l="${lk}" data-i="${i}" data-m="ti" aria-pressed="${!!x.ti}">Tiempo</button></div>
+      ${x.ti ? `<div class="paso guia-paso"><button type="button" class="paso-b" data-act="guiaPaso" data-l="${lk}" data-i="${i}" data-d="-1" aria-label="Menos tiempo">−</button><output class="paso-v">${segPaso(x.ti)}</output><button type="button" class="paso-b" data-act="guiaPaso" data-l="${lk}" data-i="${i}" data-d="1" aria-label="Más tiempo">+</button></div>`
+        : `<input class="guia-re" data-b="d.${lk}.${i}.re" value="${esc(x.re)}" placeholder="Ej: 10 o 8 por lado" autocomplete="off" aria-label="Repeticiones de ${esc(x.n)}">`}
+      <label class="chk guia-lados"><input type="checkbox" data-act="guiaLados" data-l="${lk}" data-i="${i}" ${x.lados ? 'checked' : ''}><span>Por ambos lados</span></label></div></li>`;
+}
+function vistaCalEst(r) {
+  if (!puedeEditar()) return noExiste('#alumnos');
+  if (!BORRADOR || BORRADOR.ruta !== r.borrador) { BORRADOR = borradorCalEst(r); if (!BORRADOR) return noExiste('#alumnos'); }
+  const B = BORRADOR; const a = S.alumnos.get(B.alumnoId) || { nombre: '' };
+  const lista = (lk, t, vacio) => `<div class="sec">${t}</div>${B.d[lk].length ? `<ol class="arm-lista" data-lista="${lk}">${B.d[lk].map((x, i) => filaGuia(x, i, lk)).join('')}</ol>` : `<p class="intro">${vacio}</p>`}
+    <button type="button" class="btn-sec btn-agregar" data-act="abrirSel" data-sel='{"tipo":"${lk}"}'>${ICON.mas}Agregar ${lk === 'cal' ? 'al calentamiento' : 'estiramientos'}</button>`;
+  return `<header class="barra"><div class="wrap"><button type="button" class="volver" data-act="cancelar" aria-label="Volver">${ICON.back}</button><h1>${esc(corto(a))} · calentamiento y estiramiento</h1></div></header>
+  <div class="wrap vista editor armar">
+    <p class="intro">Lo que ${esc(corto(a))} ve antes y después de sus ejercicios en el entrenamiento guiado de su link. Toca «Agregar» para elegir con los monitos, arrastra para ordenar.</p>
+    ${lista('cal', 'Calentamiento', 'Sin calentamiento: su entrenamiento parte directo en los ejercicios.')}
+    ${lista('est', 'Estiramiento final', 'Sin estiramiento: termina en el resumen.')}
+    <button type="button" class="btn-ghost" data-act="guiaEstandar">Volver a los estándar</button>
+  </div>
+  <div class="pie-ed"><button type="button" class="btn-sec" data-act="cancelar">Cancelar</button><button type="button" class="btn" data-act="guiaGuardar">Guardar</button></div>`;
+}
+const filaGuiaDe = (el) => (listaDe(el.dataset.l) || [])[+el.dataset.i];
+ACT.guiaModo = (el) => { const x = filaGuiaDe(el); if (!x) return; if (el.dataset.m === 'ti') { if (!x.ti) { x.ti = 30; x.re = ''; } } else if (x.ti) { x.ti = 0; x.re = '10'; } BORRADOR.sucio = true; repintarEditor(); };
+ACT.guiaPaso = (el) => { const x = filaGuiaDe(el); if (!x) return; const t = +x.ti || 30; const p = t >= 60 ? 15 : 5; x.ti = Math.min(300, Math.max(5, t + +el.dataset.d * p)); BORRADOR.sucio = true; repintarEditor(); };
+ACT.guiaLados = (el) => { const x = filaGuiaDe(el); if (!x) return; x.lados = !x.lados; BORRADOR.sucio = true; repintarEditor(); };
+ACT.guiaEstandar = (el) => dosToques(el, 'Toca otra vez para volver a los estándar', () => { BORRADOR.d.cal = GUIA_CAL.map(itemGuia); BORRADOR.d.est = GUIA_EST.map(itemGuia); BORRADOR.estandar = true; BORRADOR.sucio = true; repintarEditor(); toast('Listo: guarda para aplicarlo'); });
+ACT.guiaGuardar = async (el) => {
+  const B = BORRADOR; if (!B || B.guardando) return;
+  const a = S.alumnos.get(B.alumnoId); if (!a) return;
+  const doc = clon(a); delete doc.id;
+  if (B.estandar && JSON.stringify(guiaDoc(B.d.cal)) === JSON.stringify(guiaDoc(GUIA_CAL.map(itemGuia))) && JSON.stringify(guiaDoc(B.d.est)) === JSON.stringify(guiaDoc(GUIA_EST.map(itemGuia)))) { delete doc.cal; delete doc.est; }
+  else { doc.cal = guiaDoc(B.d.cal); doc.est = guiaDoc(B.d.est); }
+  doc.modificado = new Date().toISOString();
+  B.guardando = true; el.disabled = true;
+  if (await escribir('alumnos', B.alumnoId, doc)) { S.alumnos = new Map(S.alumnos).set(B.alumnoId, { ...doc, id: B.alumnoId }); BORRADOR = null; if (NUBE) NUBE.sincronizar(); toast('Guardado ✓ Lo verá en su próximo entrenamiento'); location.hash = '#' + B.alumnoId; }
+  else { B.guardando = false; el.disabled = false; }
+};
+(() => { const st = document.createElement('style'); st.textContent = `
+.fila-mover { display: flex; justify-content: flex-end; margin-top: 8px; }
+.chip.mover { font-size: 13px; }
+.guia-info small { display: block; }
+.guia-ed { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 2px 4px 10px 40px; }
+.guia-ed .seg { margin: 0; }
+.guia-re { width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 16px/1.3 var(--body); }
+.guia-lados { min-height: 36px; margin: 0; font-size: 15px; }
+.guia-paso { grid-template-columns: 44px minmax(0, 1fr) 44px; }
 `; document.head.appendChild(st); })();
 
 iniciar();

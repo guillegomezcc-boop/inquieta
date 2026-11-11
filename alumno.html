@@ -1251,7 +1251,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
   /* ---------- entrenamiento guiado: calentamiento → ejercicios con RPE → estiramiento → resumen ----------
      Todo se guarda en el celular a medida que avanza (si se cierra, sigue donde quedó) y al final se envía a Fernanda
      (POST /api/r/<link>/sesion). Si no hay internet, queda en cola y se envía al volver a abrir el link. */
-  const CAL = [
+  const CAL0 = [
     { id: 'marcha-activa', ti: 60, txt: 'Marcha en el lugar subiendo las rodillas a la altura de la cadera. Los brazos acompañan el movimiento.' },
     { id: 'cuello-movilidad', re: '5 por lado', txt: 'Lleva la oreja hacia el hombro, lento y sin forzar. Hombros relajados y abajo.' },
     { id: 'rotacion-hombros', re: '10 atrás y 10 adelante', txt: 'Brazos estirados dibujando círculos grandes y controlados. El abdomen firme.' },
@@ -1261,7 +1261,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
     { id: 'sentadilla-libre', re: '10', txt: 'Sin peso. Espalda neutra, peso en los talones y rodillas en la dirección de la punta de los pies.' },
     { id: 'estocada-rotacion', re: '6 por lado', txt: 'Da un paso largo, baja controlado y gira el tronco hacia la pierna de adelante. Vuelve y cambia.' },
   ];
-  const EST = [
+  const EST0 = [
     { id: 'estiramiento-cuadriceps', ti: 30, lados: true, txt: 'Toma el pie por detrás y acerca el talón al glúteo. Rodillas juntas y cadera hacia adelante.' },
     { id: 'estiramiento-isquios', ti: 30, lados: true, txt: 'Talón adelante con la pierna estirada. Inclínate desde la cadera con la espalda recta.' },
     { id: 'rodilla-pecho', ti: 30, lados: true, txt: 'Acostada, abraza una rodilla hacia el pecho. La espalda queda apoyada en el suelo.' },
@@ -1288,7 +1288,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
   }
   function empezar() {
     const g = leer(claveSes(), null);
-    if (g && g.fecha === HOY && g.dia === dia && !g.enviado && R.dias[g.dia]) { G = g; }
+    if (g && g.fecha === HOY && g.dia === dia && !g.enviado && R.dias[g.dia]) { G = g; G.cal = CAL.map((_, k) => !!G.cal[k]); G.est = EST.map((_, k) => !!G.est[k]); }
     else G = { id: nuevoId(), dia, fecha: HOY, inicio: new Date().toISOString(), paso: 0, cal: CAL.map(() => false), ej: R.dias[dia].ej.map(porDefecto), est: EST.map(() => false), obs: '' };
     guardarG(); pintar(); window.scrollTo({ top: 0 });
   }
@@ -1300,7 +1300,18 @@ if (typeof module !== 'undefined') module.exports = EJ;
       <button type="button" class="empezar" data-g="empezar"><b>${enCurso ? 'Continuar mi entrenamiento' : ya ? 'Entrenar otra vez' : 'Empezar entrenamiento guiado'}</b>
       <span>${enCurso ? `Vas en el paso ${g.paso + 1} de ${CAL.length + R.dias[dia].ej.length + EST.length + 1}` : 'Calentamiento, ejercicios con los monitos y estiramiento final'}</span></button>`;
   }
-  const PRE_FIG = (id) => PRE.get(id) || null;
+  // Calentamiento y estiramiento: los que eligió la entrenadora para este alumno (R.cal / R.est) o los estándar.
+  let CAL = []; let EST = [];
+  const TXT0 = new Map([...CAL0, ...EST0].map((x) => [x.id, x.txt]));
+  function listaGuiada(l, def, est) {
+    if (!Array.isArray(l)) return def;
+    return l.filter((x) => x && (x.id || x.n)).map((x) => {
+      const y = info({ n: x.n || (PRE.get(x.id) || {}).n || '', lib: x.id || '' });
+      return { id: x.id || '', n: y.n || x.n, ti: +x.ti || 0, re: x.ti ? '' : String(x.re || ''), lados: !!x.lados,
+        txt: x.txt || TXT0.get(x.id) || y.nota || (est ? 'Llega a una tensión suave, sin dolor.' : 'Movimiento controlado y sin rebotes.') };
+    });
+  }
+  function prepararGuiado() { CAL = listaGuiada(R.cal, CAL0, false); EST = listaGuiada(R.est, EST0, true); }
   const musTxt = (l) => l.map((k) => EJ.MUS[k] || k).join(' · ');
   function reloj(it, k) {
     if (!it.ti) return '';
@@ -1335,9 +1346,9 @@ if (typeof module !== 'undefined') module.exports = EJ;
     const top = `<div class="g-top"><div class="g-fila"><div class="g-fase">${esc(fase[0])}<small>${esc(fase[1])}</small></div><button type="button" class="g-x" data-g="salir" aria-label="Volver a mi rutina (queda guardado)">✕</button></div>${avance}</div>`;
     const nav = (sig = 'Siguiente') => `<div class="g-nav">${G.paso > 0 ? '<button type="button" class="btn-sec" data-g="atras">Atrás</button>' : '<span></span>'}<button type="button" class="btn" data-g="sig">${sig}</button></div>`;
     if (t === 'cal' || t === 'est') {
-      const it = (t === 'cal' ? CAL : EST)[i]; const f = PRE_FIG(it.id); if (!f) { G.paso += 1; return pintarGuiado(); }
-      app.innerHTML = `${top}<div class="g-card"><div class="g-img">${FIG.figura(f, { animar: true })}</div><div class="g-cuerpo">
-        <h2>${esc(f.n)}</h2>
+      const it = (t === 'cal' ? CAL : EST)[i]; const f = info({ n: it.n || (PRE.get(it.id) || {}).n || '', lib: it.id });
+      app.innerHTML = `${top}<div class="g-card"><div class="g-img">${imagen(f)}</div><div class="g-cuerpo">
+        <h2>${esc(f.n || it.n)}</h2>
         <div class="datos">${it.ti ? `<div class="dato"><b>${seg(it.ti)}</b><span>${it.lados ? 'por lado' : 'tiempo'}</span></div>` : ''}${it.re ? `<div class="dato"><b>${esc(it.re)}</b><span>repeticiones</span></div>` : ''}</div>
         ${it.lados ? '<span class="lados">Hazlo por ambos lados</span>' : ''}
         <p class="g-txt">${esc(it.txt)}${t === 'est' ? ' Mantén la posición sin rebotar y respira lento.' : ''}</p>
@@ -1560,6 +1571,7 @@ if (typeof module !== 'undefined') module.exports = EJ;
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { app.innerHTML = `<div class="caja"><h2>No encontramos tu rutina</h2><p>${esc(j.mensaje || 'Revisa el link o pídele uno nuevo a tu entrenadora.')}</p></div>`; return; }
       R = j; R.dias = (R.dias || []).filter((d) => (d.ej || []).length);
+      prepararGuiado();
       enviarCola();
       dia = Math.min(+leer(claveDia(), 0) || 0, Math.max(0, R.dias.length - 1));
       document.title = `Rutina de ${R.nombre} · Fernanda Rojas`;

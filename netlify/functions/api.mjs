@@ -159,7 +159,10 @@ async function rutinaAlumno(req, token, s) {
     ejercicios[id] = o;
   }
   const actualizado = rutinas.reduce((m, w) => (String(w.modificado || '') > m ? String(w.modificado) : m), '');
-  return json(req, { nombre: String(a.nombre || '').trim().split(/\s+/)[0], entrenadora: 'Fernanda Rojas', dias, ejercicios, actualizado });
+  // Calentamiento y estiramiento elegidos para este alumno (si no hay, la página usa los estándar).
+  const guia = (l) => (Array.isArray(l) ? l.slice(0, 20).map((x) => { const o = { id: String(x.id || '').slice(0, 60), n: String(x.n || '').slice(0, 80) }; if (+x.ti) o.ti = Math.min(600, +x.ti); else if (x.re) o.re = String(x.re).slice(0, 30); if (x.lados) o.lados = true; return o; }) : undefined);
+  const extra = {}; if (guia(a.cal)) extra.cal = guia(a.cal); if (guia(a.est)) extra.est = guia(a.est);
+  return json(req, { nombre: String(a.nombre || '').trim().split(/\s+/)[0], entrenadora: 'Fernanda Rojas', dias, ejercicios, actualizado, ...extra });
 }
 
 // El alumno guarda su sesión: solo con su link, solo para él, con campos acotados. Llega a Fernanda con la sincronización.
