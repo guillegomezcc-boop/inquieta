@@ -726,7 +726,7 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
      así el sitio publicado no muestra nombres ni datos de salud.
    - Después corre la misma app de claude.ai (editor.js, dentro de arrancarApp) con esta base local. */
 (() => {
-  const VERSION = "4.4.0";
+  const VERSION = "4.4.1";
   const CLAVE = 'inquieta-entrena-datos';
   const CLAVE_META = 'inquieta-entrena-meta';
   const COLS = ['alumnos', 'rutinas', 'clases', 'base', 'ejercicios', 'plantillas', 'sesiones'];
@@ -4815,9 +4815,11 @@ function edRutinaV3(B) {
   if (d.circuitos) return edCircuitosV3(B);
   if (!d._items) d._items = itemsDeRutina(d);
   const L = d._items;
-  return `<div class="sec">Ejercicios</div>
+  const al = S.alumnos.get(d.alumnoId);
+  return `${al ? parteCalEst(al, 'cal', true) : ''}<div class="sec">${al ? '2 · ' : ''}Ejercicios</div>
   ${L.length ? `<ol class="arm-lista" data-lista="rut">${L.map((x, i) => filaArm(x, i, B, 'rut')).join('')}</ol>` : '<div class="vacio-caja"><p>Toca «Agregar ejercicios» y elige de tu biblioteca. Quedan con 3 × 12 y 60 s de descanso; lo cambias con + y –.</p></div>'}
   <button type="button" class="btn btn-agregar" data-act="abrirSel" data-sel='{"tipo":"rutina"}'>${ICON.mas}Agregar ejercicios</button>
+  ${al ? parteCalEst(al, 'est', true) + '<p class="ce-nota">El calentamiento y el estiramiento se cambian desde la ficha del alumno, en «Calentamiento y estiramiento».</p>' : ''}
   <div class="sec">Más opciones</div>
   <div class="grid2 g-letra">${campo('Letra', inp('d.letra', d.letra, 'A', 'maxlength="8" autocapitalize="characters"'))}${campo('Título', inp('d.titulo', d.titulo, 'Tren inferior'))}</div>
   ${campo('Como dice en la planilla (opcional)', inp('d.etiqueta', d.etiqueta, 'A (T.I empuje)'))}
@@ -5053,13 +5055,19 @@ function seccionSesiones(a) {
 const vistaAlumnoBase = vistaAlumno;
 /* 4.4: en la rutina del alumno (app de Fernanda), el calentamiento va antes de los ejercicios y el estiramiento
    después, con sus monitos: igual que lo ve la alumna. Toca «Cambiar» para elegir otros (editor de 3.10). */
-function parteCalEst(a, t) {
+function parteCalEst(a, t, sinCambiar) {
   const L = (Array.isArray(a[t]) ? a[t] : t === 'cal' ? GUIA_CAL : GUIA_EST).map(itemGuia);
   if (!L.length) return '';
   const titulo = t === 'cal' ? '1 · Calentamiento' : '3 · Estiramiento final';
-  return `<div class="sec ce-t">${titulo}${puedeEditar() && a.id ? `<a class="ce-cambiar" href="#calest-${esc(a.id)}">Cambiar</a>` : ''}</div>
+  return `<div class="sec ce-t">${titulo}${!sinCambiar && puedeEditar() && a.id ? `<a class="ce-cambiar" href="#calest-${esc(a.id)}">Cambiar</a>` : ''}</div>
     <ul class="ce-app">${L.map((x) => `<li><span class="arm-img">${imagenDe(x.n, x.lib)}</span><span><b>${esc(x.n)}</b><small>${x.ti ? segCorto(x.ti) + (x.lados ? ' por lado' : '') : esc(x.re || '') + (x.lados ? ' · por lado' : '')}</small></span></li>`).join('')}</ul>`;
 }
+// Al anotar la sesión de hoy, Fernanda también ve el calentamiento antes y el estiramiento después.
+const edSesionBase = edSesion;
+edSesion = (B) => { // eslint-disable-line no-func-assign
+  const h = edSesionBase(B); const w = S.rutinas.get(B.id); const a = w && S.alumnos.get(w.alumnoId);
+  return a ? parteCalEst(a, 'cal', true) + h + parteCalEst(a, 'est', true) : h;
+};
 const vistaRutinaBase = vistaRutina;
 vistaRutina = (w) => { // eslint-disable-line no-func-assign
   const h = vistaRutinaBase(w); const a = S.alumnos.get(w.alumnoId);
@@ -5186,6 +5194,7 @@ ACT.guiaGuardar = async (el) => {
 (() => { const st = document.createElement('style'); st.textContent = `
 .ce-t { position: relative; padding-right: 80px; }
 .ce-cambiar { position: absolute; right: 0; top: 50%; transform: translateY(-60%); font-size: 13px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--brand-d, #008e8a); padding: 10px 0; }
+.ce-nota { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
 .ce-app { list-style: none; margin: 0 0 6px; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .ce-app li { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 12px; background: var(--surface); box-shadow: var(--shadow, none); min-width: 0; }
 .ce-app .arm-img { flex: none; width: 54px; height: 42px; }
