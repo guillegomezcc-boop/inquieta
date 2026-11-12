@@ -726,7 +726,7 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
      así el sitio publicado no muestra nombres ni datos de salud.
    - Después corre la misma app de claude.ai (editor.js, dentro de arrancarApp) con esta base local. */
 (() => {
-  const VERSION = "4.3.1";
+  const VERSION = "4.4.0";
   const CLAVE = 'inquieta-entrena-datos';
   const CLAVE_META = 'inquieta-entrena-meta';
   const COLS = ['alumnos', 'rutinas', 'clases', 'base', 'ejercicios', 'plantillas', 'sesiones'];
@@ -5051,6 +5051,23 @@ function seccionSesiones(a) {
       return `<li><a class="tarjeta" href="#ses-${esc(x.id)}">${chipR(p)}<span><h2>${esc(etiquetaDia(x.fecha))} · Día ${esc(x.dia || '')}</h2><div class="meta">${h} de ${(x.ej || []).length} ejercicios${x.duracion ? ' · ' + minutos(x.duracion) : ''}${x.obs ? ' · 💬' : ''}</div>${m ? `<div class="ejs">Más exigente: ${esc(m.n)} (${m.rpe})</div>` : ''}</span><span class="chev" aria-hidden="true">›</span></a></li>`; }).join('')}</ul>`;
 }
 const vistaAlumnoBase = vistaAlumno;
+/* 4.4: en la rutina del alumno (app de Fernanda), el calentamiento va antes de los ejercicios y el estiramiento
+   después, con sus monitos: igual que lo ve la alumna. Toca «Cambiar» para elegir otros (editor de 3.10). */
+function parteCalEst(a, t) {
+  const L = (Array.isArray(a[t]) ? a[t] : t === 'cal' ? GUIA_CAL : GUIA_EST).map(itemGuia);
+  if (!L.length) return '';
+  const titulo = t === 'cal' ? '1 · Calentamiento' : '3 · Estiramiento final';
+  return `<div class="sec ce-t">${titulo}${puedeEditar() && a.id ? `<a class="ce-cambiar" href="#calest-${esc(a.id)}">Cambiar</a>` : ''}</div>
+    <ul class="ce-app">${L.map((x) => `<li><span class="arm-img">${imagenDe(x.n, x.lib)}</span><span><b>${esc(x.n)}</b><small>${x.ti ? segCorto(x.ti) + (x.lados ? ' por lado' : '') : esc(x.re || '') + (x.lados ? ' · por lado' : '')}</small></span></li>`).join('')}</ul>`;
+}
+const vistaRutinaBase = vistaRutina;
+vistaRutina = (w) => { // eslint-disable-line no-func-assign
+  const h = vistaRutinaBase(w); const a = S.alumnos.get(w.alumnoId);
+  if (!a || w.circuitos || !(w.ej || []).length) return h;
+  const i = h.indexOf('<div class="sec">Ejercicios</div>'); const j = h.indexOf('<p class="leyenda">');
+  if (i < 0 || j < i) return h;
+  return h.slice(0, i) + parteCalEst(a, 'cal') + '<div class="sec">2 · Ejercicios</div>' + h.slice(i + '<div class="sec">Ejercicios</div>'.length, j) + parteCalEst(a, 'est') + h.slice(j);
+};
 vistaAlumno = (a) => { const h = vistaAlumnoBase(a); const k = h.lastIndexOf('</div>'); return h.slice(0, k) + tarjetaCalEst(a) + seccionSesiones(a) + h.slice(k); }; // eslint-disable-line no-func-assign
 function vistaSesion(id) {
   const x = (S.sesiones || new Map()).get(id); if (!x) return noExiste('#alumnos');
@@ -5167,6 +5184,13 @@ ACT.guiaGuardar = async (el) => {
   else { B.guardando = false; el.disabled = false; }
 };
 (() => { const st = document.createElement('style'); st.textContent = `
+.ce-t { position: relative; padding-right: 80px; }
+.ce-cambiar { position: absolute; right: 0; top: 50%; transform: translateY(-60%); font-size: 13px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--brand-d, #008e8a); padding: 10px 0; }
+.ce-app { list-style: none; margin: 0 0 6px; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ce-app li { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 12px; background: var(--surface); box-shadow: var(--shadow, none); min-width: 0; }
+.ce-app .arm-img { flex: none; width: 54px; height: 42px; }
+.ce-app b { display: block; font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; }
+.ce-app small { font-size: 12px; color: var(--muted); }
 .campo.ia textarea, .campo.ia input[type=text] { width: 100%; font-size: 16px; margin-top: 6px; }
 .ia-prev { margin-top: 10px; padding: 10px; border-radius: 14px; background: var(--surface); box-shadow: var(--shadow, none); }
 .ia-fig svg { width: 100%; height: auto; display: block; border-radius: 10px; }
