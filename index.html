@@ -726,7 +726,7 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
      así el sitio publicado no muestra nombres ni datos de salud.
    - Después corre la misma app de claude.ai (editor.js, dentro de arrancarApp) con esta base local. */
 (() => {
-  const VERSION = "4.4.1";
+  const VERSION = "4.4.2";
   const CLAVE = 'inquieta-entrena-datos';
   const CLAVE_META = 'inquieta-entrena-meta';
   const COLS = ['alumnos', 'rutinas', 'clases', 'base', 'ejercicios', 'plantillas', 'sesiones'];
@@ -5076,7 +5076,27 @@ vistaRutina = (w) => { // eslint-disable-line no-func-assign
   if (i < 0 || j < i) return h;
   return h.slice(0, i) + parteCalEst(a, 'cal') + '<div class="sec">2 · Ejercicios</div>' + h.slice(i + '<div class="sec">Ejercicios</div>'.length, j) + parteCalEst(a, 'est') + h.slice(j);
 };
-vistaAlumno = (a) => { const h = vistaAlumnoBase(a); const k = h.lastIndexOf('</div>'); return h.slice(0, k) + tarjetaCalEst(a) + seccionSesiones(a) + h.slice(k); }; // eslint-disable-line no-func-assign
+// 4.4.2: en la ficha, el calentamiento va ANTES de la rutina y el estiramiento DESPUÉS (con sus monitos). Tocar abre el editor.
+function tarjetaParte(a, t) {
+  const L = (Array.isArray(a[t]) ? a[t] : t === 'cal' ? GUIA_CAL : GUIA_EST).map(itemGuia);
+  if (!L.length) return '';
+  const propio = Array.isArray(a[t]);
+  const tit = t === 'cal' ? 'Calentamiento' : 'Estiramiento final';
+  const meta = `${pl(L.length, 'movimiento', 'movimientos')} · ${t === 'cal' ? 'antes de entrenar' : 'al terminar'}${propio ? '' : ' · los estándar'}`;
+  const inner = `<span class="letra ic ce-ic">${t === 'cal' ? '1' : '3'}</span><span><h2>${tit}</h2><div class="meta">${meta}</div>${miniaturas(L)}</span><span class="chev" aria-hidden="true">›</span>`;
+  return `<div class="sec">${t === 'cal' ? 'Antes de entrenar' : 'Después de entrenar'}</div><ul class="lista"><li>${puedeEditar() ? `<a class="tarjeta" href="#calest-${esc(a.id)}">${inner}</a>` : `<div class="tarjeta">${inner}</div>`}</li></ul>`;
+}
+vistaAlumno = (a) => { // eslint-disable-line no-func-assign
+  let h = vistaAlumnoBase(a);
+  const i = h.indexOf('<div class="sec">Rutina actual</div>');
+  if (i >= 0 && rutinasDe(a.id).length) {
+    const fin = ['<div class="sec">Plan semanal</div>', '<div class="sec">Historial</div>', '<a class="btn-ghost" href="#nuevo-rutinas'].map((x) => h.indexOf(x, i)).filter((x) => x > 0);
+    const j = fin.length ? Math.min(...fin) : h.lastIndexOf('</div>');
+    h = h.slice(0, i) + tarjetaParte(a, 'cal') + '<div class="sec">Rutina actual</div>' + h.slice(i + '<div class="sec">Rutina actual</div>'.length, j) + tarjetaParte(a, 'est') + h.slice(j);
+  }
+  const k = h.lastIndexOf('</div>');
+  return h.slice(0, k) + seccionSesiones(a) + h.slice(k);
+};
 function vistaSesion(id) {
   const x = (S.sesiones || new Map()).get(id); if (!x) return noExiste('#alumnos');
   const a = S.alumnos.get(x.alumnoId) || { id: 'alumnos', nombre: 'Alumno' };
@@ -5192,6 +5212,7 @@ ACT.guiaGuardar = async (el) => {
   else { B.guardando = false; el.disabled = false; }
 };
 (() => { const st = document.createElement('style'); st.textContent = `
+.ce-ic { font-size: 22px; }
 .ce-t { position: relative; padding-right: 80px; }
 .ce-cambiar { position: absolute; right: 0; top: 50%; transform: translateY(-60%); font-size: 13px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--brand-d, #008e8a); padding: 10px 0; }
 .ce-nota { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
