@@ -2006,13 +2006,14 @@ if (typeof module !== 'undefined') module.exports = EJ;
         }
         y += 4;
       };
-      await partePdf('1 · Calentamiento · antes de entrenar', CAL);
       for (let di = 0; di < R.dias.length; di++) {
         const D = R.dias[di];
+        if (di > 0 && (CAL.length || EST.length)) nueva(); // cada día en su hoja: calentamiento, ejercicios y estiramiento juntos
+        await partePdf(`${R.dias.length > 1 ? `Día ${di + 1} · ` : ''}1 · Calentamiento · antes de entrenar`, CAL);
         if (y > H - 50) nueva();
         doc.setFillColor(31, 41, 55); doc.roundedRect(M, y, W - 2 * M, 10, 2, 2, 'F');
         doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
-        doc.text(sinEmoji(`Día ${di + 1}${D.titulo && !/^d[ií]a \d+$/i.test(D.titulo) ? ' · ' + D.titulo : ''}`), M + 4, y + 6.8); y += 15;
+        doc.text(sinEmoji(`${CAL.length || EST.length ? '2 · Entrenamiento · ' : ''}Día ${di + 1}${D.titulo && !/^d[ií]a \d+$/i.test(D.titulo) ? ' · ' + D.titulo : ''}`), M + 4, y + 6.8); y += 15;
         for (let i = 0; i < D.ej.length; i++) {
           const e = D.ej[i]; const x = info(e);
           const det = [e.se ? `${e.se} series` : '', e.ti ? seg(e.ti) : e.re && e.se ? `${e.re}${conUnidad(e.re) ? '' : ' reps'}` : '', e.pe || '', e.de && e.se ? `descanso ${seg(e.de)}` : ''].filter(Boolean).join('  ·  ') || e.plan || '';
@@ -2034,8 +2035,8 @@ if (typeof module !== 'undefined') module.exports = EJ;
           doc.setDrawColor(235, 238, 242); doc.line(M, y - 2.5, W - M, y - 2.5);
         }
         y += 4;
+        await partePdf(`${R.dias.length > 1 ? `Día ${di + 1} · ` : ''}3 · Estiramiento final · al terminar`, EST);
       }
-      await partePdf('Estiramiento final · al terminar', EST);
       const n = doc.getNumberOfPages();
       for (let p = 1; p <= n; p++) { doc.setPage(p); doc.setFontSize(8); doc.setTextColor(150, 156, 166); doc.text(`Página ${p} de ${n}`, W - M, H - 8, { align: 'right' }); }
       doc.save(sinEmoji(`Rutina ${R.nombre}`).replace(/[^\w\- áéíóúñÁÉÍÓÚÑ]/g, '') + '.pdf');
